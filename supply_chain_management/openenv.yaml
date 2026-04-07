@@ -1,0 +1,38 @@
+name: retail_supply_chain_openenv
+description: |
+  Real-world retail demand planning and replenishment environment.
+  Agents must keep service level high while controlling inventory, backlog, and operational costs.
+version: "1.0.0"
+entrypoint:
+  type: fastapi
+  module: app:app
+
+tags:
+  - openenv
+  - supply-chain
+  - operations
+  - decision-making
+
+tasks:
+  - id: easy
+    difficulty: easy
+    objective: Maintain service levels under stable demand with short lead times.
+    grader: grader.SupplyChainGrader.grade_task
+  - id: medium
+    difficulty: medium
+    objective: Handle promotional spikes and moderate supplier uncertainty.
+    grader: grader.SupplyChainGrader.grade_task
+  - id: hard
+    difficulty: hard
+    objective: Optimize under prolonged volatility, delays, and high backlog penalties.
+    grader: grader.SupplyChainGrader.grade_task
+
+api:
+  reset: /reset
+  step: /step
+  state: /state
+
+models:
+  action: schema.Action
+  observation: schema.Observation
+  reward: schema.Reward

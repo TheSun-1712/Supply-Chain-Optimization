@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+
+# Local artifacts
+*.log
+*.npz
+*.zip
+out*.txt
+
+# Training outputs
+logs/
+models/
+
+# Legacy scripts not needed for OpenEnv submission package
+eval_agent.py
+math_agent.py
+ppo_baseline.py
+train.py
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

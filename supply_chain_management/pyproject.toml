@@ -1,0 +1,22 @@
+[project]
+name = "retail-supply-chain-openenv"
+version = "1.0.0"
+description = "OpenEnv-compatible retail supply chain environment"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24.0",
+  "pydantic>=2.6.0",
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.29.0",
+  "openai>=1.30.0",
+  "httpx>=0.27.0",
+  "openenv-core>=0.3.0"
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+server = "server.app:main"
