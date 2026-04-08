@@ -12,7 +12,7 @@ from schema import Action, Observation
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN", "")
+API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN")
 BENCHMARK = "retail_supply_chain_openenv"
 MAX_STEPS_HARD_CAP = 64
 
@@ -25,15 +25,15 @@ def log_step(step: int, action: str, reward: float, done: bool, error: str | Non
     safe_action = action.replace("\n", " ").strip()
     safe_error = "null" if error is None else error.replace("\n", " ").strip()
     print(
-        f"[STEP] step={step} action={safe_action} reward={reward:.4f} done={str(done).lower()} error={safe_error}",
+        f"[STEP] step={step} action={safe_action} reward={reward:.2f} done={str(done).lower()} error={safe_error}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_blob = ",".join(f"{x:.4f}" for x in rewards)
+    rewards_blob = ",".join(f"{x:.2f}" for x in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.4f} rewards=[{rewards_blob}]",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_blob}",
         flush=True,
     )
 
