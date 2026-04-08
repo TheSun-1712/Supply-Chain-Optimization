@@ -1,4 +1,4 @@
-name: retail_supply_chain_openenv
+aname: retail_supply_chain_openenv
 description: |
   Real-world retail demand planning and replenishment environment.
   Agents must keep service level high while controlling inventory, backlog, and operational costs.

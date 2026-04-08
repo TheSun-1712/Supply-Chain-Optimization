@@ -1,3 +1,13 @@
+---
+title: supply-chain-management
+emoji: 🚚
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Retail Supply Chain OpenEnv
 
 This project implements a complete OpenEnv-style environment for a real-world task: retail demand planning and inventory replenishment.

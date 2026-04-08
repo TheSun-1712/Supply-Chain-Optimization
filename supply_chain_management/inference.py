@@ -38,13 +38,6 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     )
 
 
-def _extract_text(response) -> str:
-    try:
-        return (response.output_text or "").strip()
-    except Exception:  # noqa: BLE001
-        return ""
-
-
 def _fallback_action(observation: Observation, task_id: str) -> Action:
     return heuristic_policy(observation, task_id)
 
@@ -66,15 +59,15 @@ def get_model_action(client: OpenAI, task_id: str, observation: Observation, his
     }
 
     try:
-        response = client.responses.create(
+        response = client.chat.completions.create(
             model=MODEL_NAME,
-            input=[
+            messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": json.dumps(user_payload)},
             ],
             temperature=0.0,
         )
-        text = _extract_text(response)
+        text = response.choices[0].message.content or ""
         if not text:
             return _fallback_action(observation, task_id)
 
