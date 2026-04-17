@@ -1,16 +1,21 @@
-# Workspace-level noise
-.venv/
-.zencoder/
-.zenflow/
-
-# Old/auxiliary folder not part of current submission
-openenv_devops/
-
 # Common Python noise anywhere
 **/__pycache__/
 **/*.py[cod]
 **/*.pyo
+**/.venv/
+**/venv/
+
+# Workspace-specific folders to ignore
+openenv_devops/
+.zencoder/
+.zenflow/
+
+# Web artifacts
+**/node_modules/
+**/dist/
 
 # OS/editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
