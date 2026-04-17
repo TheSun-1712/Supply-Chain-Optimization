@@ -1,58 +1,24 @@
-import { Bot, Database, LayoutDashboard, LineChart, ShieldCheck } from "lucide-react";
+import { BarChart3, Boxes, BrainCircuit, FlaskConical, PlayCircle } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const links = [
-  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/app/financials", label: "Financials", icon: LineChart },
-  { to: "/app/logs", label: "Logs", icon: Database },
-  { to: "/app/copilot", label: "AI Co-Pilot", icon: Bot },
+  { to: "/app/inventory", label: "Inventory", icon: Boxes },
+  { to: "/app/simulation", label: "Simulation", icon: PlayCircle },
+  { to: "/app/recommendations", label: "AI Decisions", icon: BrainCircuit },
+  { to: "/app/scenarios", label: "Scenarios", icon: FlaskConical },
+  { to: "/app/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 export function AppShell() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Mobile top nav */}
-      <div className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 px-4 py-4 backdrop-blur-xl lg:hidden">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-200/80">FlowSync</p>
-            <p className="mt-1 text-sm text-slate-400">Agentic Suite</p>
-          </div>
-        </div>
-        <nav className="grid grid-cols-4 gap-1">
-          {links.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                [
-                  "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-medium transition",
-                  isActive ? "bg-white/10 text-white" : "bg-white/[0.03] text-slate-400",
-                ].join(" ")
-              }
-            >
-              <Icon size={15} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </div>
-
-      {/* Desktop sidebar */}
-      <div className="fixed inset-y-0 left-0 hidden w-72 border-r border-white/10 bg-slate-950/90 px-6 py-8 backdrop-blur-xl lg:block">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+      <aside className="hidden w-80 shrink-0 border-r border-[var(--line)] bg-[var(--panel-strong)]/90 p-6 lg:fixed lg:inset-y-0 lg:block">
         <div className="flex h-full flex-col">
-          <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5 shadow-glow">
-            <div className="mb-3 flex items-center gap-3">
-              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-2 text-cyan-200">
-                <ShieldCheck size={20} />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-cyan-200/80">FlowSync</p>
-                <h1 className="text-lg font-semibold">Agentic Suite</h1>
-              </div>
-            </div>
-            <p className="text-sm leading-6 text-slate-300">
-              RL-guided supply chain simulation with AI Co-Pilot and live disruption controls.
+          <div className="rounded-[28px] border border-[var(--line-strong)] bg-[var(--panel)] p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--accent)]">Atlas Control</p>
+            <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-950">Supply chain intelligence for planners and operators.</h1>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              Offline RL recommendations, scenario stress testing, and simulation replay in one SaaS workspace.
             </p>
           </div>
 
@@ -63,10 +29,10 @@ export function AppShell() {
                 to={to}
                 className={({ isActive }) =>
                   [
-                    "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                    "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                     isActive
-                      ? "bg-white/10 text-white"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white",
+                      ? "bg-slate-950 text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)]"
+                      : "text-slate-700 hover:bg-white hover:text-slate-950",
                   ].join(" ")
                 }
               >
@@ -76,14 +42,42 @@ export function AppShell() {
             ))}
           </nav>
 
+          <div className="mt-auto rounded-[28px] border border-[var(--line)] bg-white/90 p-5">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Decision Engine</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">CQL hybrid policy</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Shared layers 256→128→64 with action, quantity, and supplier heads driving recommendation and simulation loops.
+            </p>
+          </div>
         </div>
-      </div>
+      </aside>
 
-      <main className="min-h-screen lg:pl-72">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
+      <div className="lg:pl-80">
+        <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[rgba(246,243,235,0.82)] backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center gap-3 overflow-x-auto px-4 py-4 sm:px-6 lg:px-8">
+            {links.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  [
+                    "whitespace-nowrap rounded-full border px-4 py-2 text-sm transition",
+                    isActive
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-[var(--line)] bg-white/80 text-slate-700 hover:border-slate-400",
+                  ].join(" ")
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

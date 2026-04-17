@@ -1,19 +1,18 @@
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
-@import "@fontsource/jetbrains-mono/500.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --page-bg: #020617;
-  --panel-bg: rgba(15, 23, 42, 0.78);
-  --panel-border: rgba(148, 163, 184, 0.12);
-  --hero-glow: rgba(34, 211, 238, 0.16);
+  --bg: #f6f3eb;
+  --panel: rgba(255, 255, 255, 0.78);
+  --panel-strong: #ebe5d8;
+  --line: rgba(71, 85, 105, 0.16);
+  --line-strong: rgba(71, 85, 105, 0.24);
+  --ink: #0f172a;
+  --muted: #475569;
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.14);
+  --alert: #b45309;
 }
 
 html {
@@ -21,33 +20,82 @@ html {
 }
 
 body {
-  @apply m-0 bg-slate-950 font-sans text-slate-100 antialiased;
-  background-image:
-    radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(52, 211, 153, 0.12), transparent 24%),
-    linear-gradient(180deg, #020617 0%, #050816 100%);
+  @apply m-0 antialiased;
+  font-family: "Trebuchet MS", "Segoe UI Variable", "Gill Sans", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 26%),
+    radial-gradient(circle at top right, rgba(180, 83, 9, 0.09), transparent 20%),
+    linear-gradient(180deg, #f8f4ed 0%, #f3efe7 100%);
+  color: var(--ink);
 }
 
 #root {
-  @apply min-h-screen;
+  min-height: 100vh;
 }
 
 ::selection {
-  @apply bg-cyan-400/20 text-white;
+  background: rgba(15, 118, 110, 0.16);
 }
 
 .panel {
-  @apply rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl;
+  @apply rounded-[28px] border p-5 sm:p-6;
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: 0 20px 50px rgba(148, 163, 184, 0.12);
+  backdrop-filter: blur(18px);
 }
 
-.grid-surface {
-  background-image: theme("backgroundImage.grid");
-  background-size: 32px 32px;
+.input {
+  @apply w-full rounded-2xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition;
+  border-color: var(--line);
 }
 
-.text-gradient {
-  background: linear-gradient(120deg, #ecfeff 0%, #22d3ee 45%, #34d399 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.input:focus {
+  border-color: rgba(15, 118, 110, 0.45);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+}
+
+.button-primary {
+  @apply rounded-2xl px-4 py-3 text-sm font-semibold text-white transition;
+  background: linear-gradient(135deg, #0f172a 0%, #0f766e 100%);
+}
+
+.button-primary:hover {
+  transform: translateY(-1px);
+}
+
+.button-secondary {
+  @apply rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition;
+  border-color: var(--line);
+}
+
+.metric-card {
+  @apply rounded-[24px] border bg-white/80 p-5;
+  border-color: var(--line);
+}
+
+.section-title {
+  @apply text-2xl font-semibold tracking-tight text-slate-950;
+}
+
+.section-copy {
+  @apply mt-2 max-w-3xl text-sm leading-6 text-slate-600;
+}
+
+.table-shell {
+  @apply overflow-hidden rounded-[24px] border;
+  border-color: var(--line);
+}
+
+table {
+  @apply w-full border-collapse;
+}
+
+th {
+  @apply bg-slate-950 px-4 py-3 text-left text-xs uppercase tracking-[0.22em] text-slate-300;
+}
+
+td {
+  @apply border-t px-4 py-3 align-top text-sm text-slate-700;
+  border-color: var(--line);
 }

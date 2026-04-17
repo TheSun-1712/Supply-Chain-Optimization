@@ -13,6 +13,7 @@ openenv_devops/
 # Web artifacts
 **/node_modules/
 **/dist/
+saas_supply_chain.db
 
 # OS/editor
 .DS_Store
