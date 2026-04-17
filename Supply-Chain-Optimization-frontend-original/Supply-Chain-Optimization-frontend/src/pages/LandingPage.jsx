@@ -63,7 +63,7 @@ export function LandingPage() {
 
         <section id="platform-brief" className="panel grid gap-6 p-6 lg:grid-cols-3 lg:p-8">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Postgres</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">SQLite</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
               `simulation_logs` stores day-level RL outputs including inventories, action selections, profits, and hash references.
             </p>

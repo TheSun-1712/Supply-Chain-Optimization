@@ -40,7 +40,7 @@ export function LandingPage() {
                 Schedule resilient production flows with <span className="text-gradient">RL-guided foresight</span>.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-                Watch inventory drift across a noisy market, surface the most profitable policy, and 
+                Watch inventory drift across a noisy market, surface the most profitable policy, and
                 optimize your operational record through intelligent, agentic decision making.
               </p>
 
@@ -85,7 +85,7 @@ export function LandingPage() {
 
         <section id="platform-brief" className="panel grid gap-6 p-6 lg:grid-cols-3 lg:p-8">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Postgres</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">SQLite</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
               `simulation_logs` stores day-level RL outputs including inventories, action selections, and realized profits.
             </p>

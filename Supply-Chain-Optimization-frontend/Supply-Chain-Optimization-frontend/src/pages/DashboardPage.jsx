@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, CloudLightning, Sparkles, Globe } from "lucide-react";
+import { Activity, AlertTriangle, CloudLightning, Sparkles, Globe, CloudSun } from "lucide-react";
 import { EnvironmentControls } from "../components/EnvironmentControls";
 import { InventoryChart } from "../components/InventoryChart";
 import { MetricCard } from "../components/MetricCard";
@@ -6,6 +6,7 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
 import { useProductionData } from "../hooks/useProductionData.jsx";
 import { formatCurrency, formatTimestamp } from "../lib/formatters";
+import { triggerDisruption } from "../lib/api";
 
 export function DashboardPage() {
   const { inventory, controls, setControls, generatedAt, status } = useProductionData();
@@ -88,7 +89,7 @@ export function DashboardPage() {
                 Lower <span className="text-emerald-200">Auto play speed</span> defines how many milliseconds the playback uses for each simulated day.
               </p>
               <p>
-                Use <span className="text-amber-200">God-Mode disruptions</span> to inject realistic crises, or rely on the <span className="text-emerald-400 font-semibold">Real-World Sync</span> to pull live Singapore weather and WTI oil prices.
+                Use <span className="text-amber-200">Disruptions</span> to inject realistic crises, or rely on the <span className="text-emerald-400 font-semibold">Real-World Sync</span> to pull live Singapore weather and WTI oil prices.
               </p>
             </div>
           </section>
@@ -96,10 +97,48 @@ export function DashboardPage() {
           <section className="panel p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-amber-200">
+                <CloudSun size={18} />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Weather Mode</p>
+                <h3 className="text-lg font-semibold text-white">Select operating conditions</h3>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3">
+              {[
+                { id: "hurricane", label: "Hurricane", hint: "Overseas route BLOCKED. Severe delays." },
+                { id: "fuel_spike", label: "Fuel Spike", hint: "WTI oil surge. +1.5x cost multiplier." },
+                { id: "demand_shock", label: "Demand Shock", hint: "Market surge. 3x regional demand." }
+              ].map((option) => {
+                const isActive = (option.id === "hurricane" && status?.weather === "hurricane");
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => triggerDisruption(option.id)}
+                    className={`rounded-2xl border p-4 text-left text-sm transition ${isActive
+                      ? "border-amber-300/60 bg-amber-400/10 text-white"
+                      : "border-white/10 bg-white/5 text-slate-300 hover:border-amber-300/30 hover:bg-white/10"
+                      }`}
+                  >
+                    <p className="font-medium capitalize">{option.label}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {option.hint}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="panel p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-3 text-rose-200">
                 <AlertTriangle size={18} />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Warnings</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-rose-200/80">Warnings</p>
                 <h3 className="text-lg font-semibold text-white">Inventory attention lane</h3>
               </div>
             </div>

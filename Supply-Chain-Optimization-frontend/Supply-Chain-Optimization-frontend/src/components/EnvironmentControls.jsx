@@ -90,7 +90,7 @@ export function EnvironmentControls({ controls, setControls, status }) {
             <span className="font-mono text-sm text-cyan-200">{Math.round(controls.simulationLength)} days</span>
           </div>
           <input
-            type="range" min="7" max="5000" step="1"
+            type="range" min="7" max="365" step="1"
             value={controls.simulationLength}
             onChange={updateControl("simulationLength")}
             className="mt-5 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
@@ -101,14 +101,19 @@ export function EnvironmentControls({ controls, setControls, status }) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-white">Auto-Play Speed</p>
-              <p className="mt-1 text-sm text-slate-400">Milliseconds per simulated day.</p>
+              <p className="mt-1 text-sm text-slate-400">Multiplier for simulation velocity.</p>
             </div>
-            <span className="font-mono text-sm text-emerald-200">{Math.round(controls.autoPlaySpeed)} ms</span>
+            <span className="font-mono text-sm text-emerald-200">{Math.max(1, Math.round(1000 / controls.autoPlaySpeed))}x</span>
           </div>
           <input
-            type="range" min="50" max="3000" step="50"
-            value={controls.autoPlaySpeed}
-            onChange={updateControl("autoPlaySpeed")}
+            type="range" min="1" max="5" step="1"
+            value={Math.max(1, Math.round(1000 / controls.autoPlaySpeed))}
+            onChange={(e) => {
+              const multiplier = Number(e.target.value);
+              const ms = 1000 / multiplier;
+              setControls(c => ({ ...c, autoPlaySpeed: ms }));
+              apiPost("/api/control", { autoPlaySpeed: ms });
+            }}
             className="mt-5 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-emerald-400"
           />
         </label>
@@ -118,7 +123,7 @@ export function EnvironmentControls({ controls, setControls, status }) {
       <div>
         <div className="mb-3 flex items-center gap-2">
           <AlertTriangle size={15} className="text-amber-400" />
-          <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">God-Mode Disruptions</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Disruptions</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

@@ -83,3 +83,15 @@ export async function loadPlatformStats() {
   }
 }
 
+export async function triggerDisruption(type) {
+  try {
+    const response = await fetch("/api/disrupt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
