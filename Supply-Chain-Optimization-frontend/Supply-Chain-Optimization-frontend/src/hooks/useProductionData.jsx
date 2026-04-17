@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { loadLatestRun, loadLogs, loadSeiStatus } from "../lib/api";
+import { loadLatestRun, loadLogs } from "../lib/api";
 import { controlDefaults } from "../data/mockData";
 
 const ProductionDataContext = createContext(null);
@@ -7,7 +7,6 @@ const ProductionDataContext = createContext(null);
 export function ProductionDataProvider({ children }) {
   const [inventory, setInventory] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [seiStatus, setSeiStatus] = useState(null);
   const [controls, setControls] = useState(controlDefaults);
   const [generatedAt, setGeneratedAt] = useState(null);
   const [status, setStatus] = useState(null);
@@ -16,10 +15,9 @@ export function ProductionDataProvider({ children }) {
     let active = true;
 
     async function load() {
-      const [latestRun, nextLogs, nextSeiStatus] = await Promise.all([
+      const [latestRun, nextLogs] = await Promise.all([
         loadLatestRun(),
         loadLogs(),
-        loadSeiStatus(),
       ]);
 
       if (!active) return;
@@ -29,7 +27,6 @@ export function ProductionDataProvider({ children }) {
       setGeneratedAt(latestRun.generatedAt ?? null);
       setStatus(latestRun.status ?? null);
       setLogs(nextLogs);
-      setSeiStatus(nextSeiStatus);
     }
 
     load();
@@ -46,7 +43,6 @@ export function ProductionDataProvider({ children }) {
       value={{
         inventory,
         logs,
-        seiStatus,
         controls,
         generatedAt,
         status,

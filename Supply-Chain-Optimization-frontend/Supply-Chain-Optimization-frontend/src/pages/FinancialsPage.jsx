@@ -1,12 +1,11 @@
 import { MetricCard } from "../components/MetricCard";
 import { PageHeader } from "../components/PageHeader";
 import { ProfitForecastChart } from "../components/ProfitForecastChart";
-import { SeiStatusCard } from "../components/SeiStatusCard";
 import { useProductionData } from "../hooks/useProductionData.jsx";
 import { formatCurrency } from "../lib/formatters";
 
 export function FinancialsPage() {
-  const { inventory, seiStatus } = useProductionData();
+  const { inventory } = useProductionData();
   const latest = inventory.at(-1);
   const previous = inventory.at(-2);
   const delta = latest && previous ? latest.profit - previous.profit : 0;
@@ -15,8 +14,8 @@ export function FinancialsPage() {
     <div>
       <PageHeader
         eyebrow="Financials"
-        title="Profit confidence and verification"
-        description="Compare realized profit against the agent forecast, and monitor the Sei transaction that anchors the best-performing log."
+        title="Profit confidence and forecasting"
+        description="Compare realized profit against the agent forecast, and monitor agent performance across historical runs."
       />
 
       <div className="mb-6 grid gap-4 md:grid-cols-3 lg:mb-8">
@@ -40,9 +39,8 @@ export function FinancialsPage() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.9fr]">
+      <div className="grid gap-6">
         <ProfitForecastChart data={inventory} />
-        <SeiStatusCard status={seiStatus} />
       </div>
     </div>
   );

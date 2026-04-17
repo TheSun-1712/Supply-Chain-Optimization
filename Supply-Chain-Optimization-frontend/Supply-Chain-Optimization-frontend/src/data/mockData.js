@@ -38,7 +38,6 @@ const logs = [
     action: "rebalance_central_to_region",
     stochastic_noise_value: 0.21,
     profitImpact: 420,
-    hashId: "0x2fd9...90ab",
   },
   {
     timestamp: "2026-04-17T06:15:00Z",
@@ -46,7 +45,6 @@ const logs = [
     action: "increase_safety_stock",
     stochastic_noise_value: 0.18,
     profitImpact: 610,
-    hashId: "0xc84e...ab22",
   },
   {
     timestamp: "2026-04-17T06:25:00Z",
@@ -54,7 +52,6 @@ const logs = [
     action: "expedite_regional_restock",
     stochastic_noise_value: 0.32,
     profitImpact: 980,
-    hashId: "0xa711...ff0c",
   },
   {
     timestamp: "2026-04-17T06:35:00Z",
@@ -62,7 +59,6 @@ const logs = [
     action: "defer_low_margin_batch",
     stochastic_noise_value: 0.27,
     profitImpact: 710,
-    hashId: "0x8863...3de4",
   },
   {
     timestamp: "2026-04-17T06:45:00Z",
@@ -70,7 +66,6 @@ const logs = [
     action: "route_demand_to_central",
     stochastic_noise_value: 0.15,
     profitImpact: 1330,
-    hashId: "0xd992...b8c0",
   },
   {
     timestamp: "2026-04-17T06:55:00Z",
@@ -78,7 +73,6 @@ const logs = [
     action: "stabilize_climate_buffer",
     stochastic_noise_value: 0.11,
     profitImpact: 890,
-    hashId: "0x7e2c...ce10",
   },
   {
     timestamp: "2026-04-17T07:05:00Z",
@@ -86,7 +80,6 @@ const logs = [
     action: "promote_high_margin_mix",
     stochastic_noise_value: 0.36,
     profitImpact: 1640,
-    hashId: "0xff83...a214",
   },
   {
     timestamp: "2026-04-17T07:15:00Z",
@@ -94,7 +87,6 @@ const logs = [
     action: "lock_supplier_swap",
     stochastic_noise_value: 0.29,
     profitImpact: 1540,
-    hashId: "0x18ef...4409",
   },
 ];
 
@@ -107,14 +99,7 @@ export const mockLogs = logs.map((entry) => ({
 
 export const mockInventorySeries = inventorySeries;
 
-export const mockSeiStatus = {
-  network: "Sei Atlantic-2",
-  state: "Committed",
-  transactionHash: "0x9f4bb15ea227d314a76f86f165f9129f4c005e1d",
-  lastAnchoredAt: "2026-04-17T07:05:22Z",
-  bestProfit: 1640,
-  sourceHash: "sha256:8f60b2ce96f9d2e7fca4651dfb2f11234d1b8eb6b1ccf4d02628eb8088d2e918",
-};
+
 
 export const controlDefaults = {
   simulationLength: 30,
@@ -124,5 +109,5 @@ export const controlDefaults = {
 export const landingStats = [
   { label: "Policies Simulated", value: "12.4k" },
   { label: "Current Best Margin", value: "+18.2%" },
-  { label: "Verified on Sei", value: "1 log" },
+  { label: "Optimized Decisions", value: "842" },
 ];

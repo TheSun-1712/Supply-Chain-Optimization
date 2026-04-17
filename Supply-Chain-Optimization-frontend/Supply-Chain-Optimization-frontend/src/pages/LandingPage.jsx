@@ -1,8 +1,23 @@
+import { useEffect, useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
 import { Link } from "react-router-dom";
-import { landingStats } from "../data/mockData";
+import { loadPlatformStats } from "../lib/api";
+
+function formatK(num) {
+  if (typeof num === "string") return num;
+  if (!num && num !== 0) return "--";
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "k";
+  }
+  return num.toString();
+}
 
 export function LandingPage() {
+  const [stats, setStats] = useState([]);
+
+  useEffect(() => {
+    loadPlatformStats().then(setStats);
+  }, []);
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-50">
       <div className="pointer-events-none absolute inset-0 grid-surface opacity-40" />
@@ -13,7 +28,7 @@ export function LandingPage() {
         <header className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-cyan-200/80">FlowSync</p>
-            <p className="mt-2 text-sm text-slate-400">AI production scheduling with cryptographic proof.</p>
+            <p className="mt-2 text-sm text-slate-400">AI-driven production scheduling and simulation.</p>
           </div>
         </header>
 
@@ -25,8 +40,8 @@ export function LandingPage() {
                 Schedule resilient production flows with <span className="text-gradient">RL-guided foresight</span>.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-                Watch inventory drift across a noisy market, surface the most profitable policy, and anchor the top log
-                on Sei Atlantic-2 for an immutable operational record.
+                Watch inventory drift across a noisy market, surface the most profitable policy, and 
+                optimize your operational record through intelligent, agentic decision making.
               </p>
 
               <div className="mt-10 flex flex-col gap-4 sm:flex-row">
@@ -50,12 +65,19 @@ export function LandingPage() {
             <section className="panel animate-float p-6 sm:p-8">
               <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">Operational Snapshot</p>
               <div className="mt-6 space-y-5">
-                {landingStats.map((stat) => (
+                {stats.map((stat) => (
                   <div key={stat.label} className="rounded-3xl border border-white/10 bg-white/5 p-5">
                     <p className="text-sm text-slate-400">{stat.label}</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{formatK(stat.value)}</p>
                   </div>
                 ))}
+                {stats.length === 0 && (
+                  <div className="animate-pulse space-y-5">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-24 rounded-3xl bg-white/5" />
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </div>
@@ -65,19 +87,19 @@ export function LandingPage() {
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Postgres</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              `simulation_logs` stores day-level RL outputs including inventories, action selections, profits, and hash references.
+              `simulation_logs` stores day-level RL outputs including inventories, action selections, and realized profits.
             </p>
           </div>
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">FastAPI</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              `/api/latest-run` hydrates the dashboard while a background task hashes the highest-profit record and posts to Sei.
+              `/api/latest-run` hydrates the dashboard while the background engine simulates agent performance in real-time.
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">Sei Atlantic-2</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/80">RL Intelligence</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              The best policy run receives a SHA-256 proof and transaction status, making the top-performing log auditable.
+              Advanced Reinforcement Learning agents continuously evaluate supply chain risks and refine inventory policies.
             </p>
           </div>
         </section>

@@ -2,7 +2,6 @@ import {
   controlDefaults,
   mockInventorySeries,
   mockLogs,
-  mockSeiStatus,
 } from "../data/mockData";
 
 async function fetchJson(url) {
@@ -67,18 +66,20 @@ export async function loadLogs() {
   }
 }
 
-export async function loadSeiStatus() {
+export async function loadPlatformStats() {
   try {
-    const payload = await fetchJson("/api/sei-status");
-    return {
-      network: payload.network ?? "Sei Atlantic-2",
-      state: payload.state ?? payload.status ?? "Pending",
-      transactionHash: payload.transactionHash ?? payload.transaction_hash,
-      lastAnchoredAt: payload.lastAnchoredAt ?? payload.last_anchored_at,
-      bestProfit: payload.bestProfit ?? payload.best_profit,
-      sourceHash: payload.sourceHash ?? payload.source_hash,
-    };
+    const payload = await fetchJson("/api/db-stats");
+    return [
+      { label: "Policies Simulated", value: payload.policiesSimulated },
+      { label: "Current Best Margin", value: `+${payload.bestMargin}%` },
+      { label: "Optimized Decisions", value: payload.optimizedDecisions },
+    ];
   } catch {
-    return mockSeiStatus;
+    return [
+      { label: "Policies Simulated", value: 12400 },
+      { label: "Current Best Margin", value: "+18.2%" },
+      { label: "Optimized Decisions", value: 842 },
+    ];
   }
 }
+

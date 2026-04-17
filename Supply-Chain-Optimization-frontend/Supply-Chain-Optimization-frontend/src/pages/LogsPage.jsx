@@ -15,7 +15,7 @@ export function LogsPage() {
       <PageHeader
         eyebrow="Logs"
         title="RL decision trace"
-        description="Inspect policy actions emitted by the reinforcement learning agent and highlight the record that qualifies for Sei verification."
+        description="Inspect policy actions emitted by the reinforcement learning agent and identify the most effective policy decisions."
         aside={
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
             <DatabaseZap size={16} />
@@ -34,16 +34,16 @@ export function LogsPage() {
         <MetricCard
           label="Top Profit Impact"
           value={bestLog ? formatCurrency(bestLog.profitImpact) : "--"}
-          hint="Maximum profit-impact event selected for hashing."
+          hint="Highest profit impact recorded in current log series."
           tone="emerald"
         />
         <div className="panel flex flex-col justify-between p-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Best Record</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/80">Optimal Policy</p>
             <p className="mt-4 text-lg font-semibold text-white">{bestLog?.action ?? "Awaiting data"}</p>
           </div>
           <div className="mt-4">
-            <StatusPill tone="amber">{bestLog ? "Verify on Sei badge rendered" : "No best log yet"}</StatusPill>
+            <StatusPill tone="emerald">{bestLog ? "Optimization Target Flagged" : "Calculating..."}</StatusPill>
           </div>
         </div>
       </div>
