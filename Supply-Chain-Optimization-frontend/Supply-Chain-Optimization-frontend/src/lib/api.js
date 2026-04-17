@@ -36,7 +36,10 @@ export async function loadLatestRun() {
         forecast: entry.forecast ?? entry.prediction_forecast ?? entry.profit,
       })),
       generatedAt: payload.generatedAt ?? payload.generated_at ?? null,
-      status: payload.status ?? null,
+      status: payload.status ? {
+        ...payload.status,
+        realWorld: payload.status.realWorld ?? {}
+      } : null,
     };
   } catch {
     return {

@@ -26,6 +26,7 @@ from openai import OpenAI
 from env import RetailSupplyChainEnv
 from math_agent import MultiEchelonBaseStockAgent
 from database import init_db, SessionLocal, RLTrajectory, SimulationSession, User
+from .services import real_world_service
 
 app = FastAPI(title="Supply Chain Co-Pilot API", version="1.0.0")
 
@@ -117,7 +118,12 @@ class SimState:
             "totalCosts": round(info["op_cost"] + info["holding_cost"] + info["backlog_penalty"], 2),
         }
         self.logs.append(entry)
-        print(f"DEBUG: Sim Step Complete -> Day {day} | Profit: {entry['profit']}")
+        
+        # Pull live world data if in sync mode
+        rw = real_world_service.get_latest()
+        self.env.inject_real_world_data(rw['weather'], rw['fuel_multiplier'], rw)
+
+        print(f"DEBUG: Sim Step Complete -> Day {day} | Profit: {entry['profit']} | World: {rw['status']}")
         return entry
 
 
@@ -188,6 +194,7 @@ def latest_run():
             "backlog": obs.backlog,
             "centralInv": obs.inventory_central,
             "regionalInv": obs.inventory_regional,
+            "realWorld": getattr(sim.env, 'real_world_data', {}),
         },
     }
 

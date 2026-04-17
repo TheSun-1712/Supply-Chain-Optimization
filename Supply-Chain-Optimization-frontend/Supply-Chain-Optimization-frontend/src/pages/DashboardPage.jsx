@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, CloudLightning, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, CloudLightning, Sparkles, Globe } from "lucide-react";
 import { EnvironmentControls } from "../components/EnvironmentControls";
 import { InventoryChart } from "../components/InventoryChart";
 import { MetricCard } from "../components/MetricCard";
@@ -26,9 +26,19 @@ export function DashboardPage() {
         title="AI-driven production scheduling"
         description="Track how backlog pressure, central fulfillment, and regional inventory shift across the simulation under noisy market conditions."
         aside={
-          <StatusPill tone="cyan">
-            {generatedAt ? `Latest run ${formatTimestamp(generatedAt)} UTC` : "Waiting for backend sync"}
-          </StatusPill>
+          <div className="flex flex-col items-end gap-2">
+            <StatusPill tone="cyan">
+              {generatedAt ? `Latest run ${formatTimestamp(generatedAt)} UTC` : "Waiting for backend sync"}
+            </StatusPill>
+            {status?.realWorld?.status === "Real-World Sync" && (
+              <StatusPill tone="emerald">
+                <div className="flex items-center gap-1.5 font-bold uppercase tracking-widest text-[10px]">
+                  <Globe size={10} />
+                  Real-World Sync
+                </div>
+              </StatusPill>
+            )}
+          </div>
         }
       />
 
@@ -78,7 +88,7 @@ export function DashboardPage() {
                 Lower <span className="text-emerald-200">Auto play speed</span> defines how many milliseconds the playback uses for each simulated day.
               </p>
               <p>
-                Use <span className="text-amber-200">God-Mode disruptions</span> to inject realistic supply chain crises and generate diverse RL training data.
+                Use <span className="text-amber-200">God-Mode disruptions</span> to inject realistic crises, or rely on the <span className="text-emerald-400 font-semibold">Real-World Sync</span> to pull live Singapore weather and WTI oil prices.
               </p>
             </div>
           </section>
@@ -130,13 +140,23 @@ export function DashboardPage() {
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Route Status</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">Route Status</p>
+                  {status?.realWorld?.wind_speed > 0 && (
+                    <span className="text-[10px] text-slate-500">{status.realWorld.wind_speed} km/h wind</span>
+                  )}
+                </div>
                 <p className={`mt-2 text-2xl font-semibold ${status?.routeStatus === "blocked" ? "text-rose-300" : status?.routeStatus === "delayed" ? "text-amber-300" : "text-emerald-300"}`}>
                   {status?.routeStatus?.toUpperCase() ?? "--"}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Fuel Multiplier</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">Fuel Multiplier</p>
+                  {status?.realWorld?.oil_price > 0 && (
+                    <span className="text-[10px] text-slate-500">WTI ${status.realWorld.oil_price}</span>
+                  )}
+                </div>
                 <p className={`mt-2 text-2xl font-semibold ${status?.fuelMultiplier > 2 ? "text-rose-300" : status?.fuelMultiplier > 1.5 ? "text-amber-300" : "text-emerald-300"}`}>
                   {status ? `${status.fuelMultiplier}x` : "--"}
                 </p>

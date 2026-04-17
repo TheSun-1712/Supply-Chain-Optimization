@@ -170,8 +170,23 @@ class RetailSupplyChainEnv:
         self.fuel_cost_multiplier = 1.0
         self.overseas_route_status = "open"
         self.manual_weather_override = 0
+        self.real_world_data: Dict[str, Any] = {}
 
         return self._observation()
+
+    def inject_real_world_data(self, weather: str, fuel_mult: float, metadata: Dict[str, Any]):
+        """Override internal stochastic factors with external ground truth."""
+        self.weather_condition = weather
+        self.fuel_cost_multiplier = fuel_mult
+        self.real_world_data = metadata
+        
+        # Trigger route status side effects
+        if weather == "hurricane":
+            self.overseas_route_status = "blocked"
+        elif weather == "storm":
+            self.overseas_route_status = "delayed"
+        else:
+            self.overseas_route_status = "open"
 
     def state(self) -> State:
         return State(
