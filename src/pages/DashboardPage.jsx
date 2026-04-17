@@ -1,4 +1,5 @@
-import { Activity, AlertTriangle, Sparkles } from "lucide-react";
+import { Activity, CloudSun, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { EnvironmentControls } from "../components/EnvironmentControls";
 import { InventoryChart } from "../components/InventoryChart";
 import { MetricCard } from "../components/MetricCard";
@@ -10,6 +11,7 @@ import { formatCurrency, formatTimestamp } from "../lib/formatters";
 export function DashboardPage() {
   const { inventory, controls, setControls, generatedAt } = useProductionData();
   const latest = inventory.at(-1);
+  const [selectedWeather, setSelectedWeather] = useState("clear weather");
 
   return (
     <div>
@@ -77,17 +79,36 @@ export function DashboardPage() {
           <section className="panel p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-amber-200">
-                <AlertTriangle size={18} />
+                <CloudSun size={18} />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Warnings</p>
-                <h3 className="text-lg font-semibold text-white">Inventory attention lane</h3>
+                <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">Weather Mode</p>
+                <h3 className="text-lg font-semibold text-white">Select operating conditions</h3>
               </div>
             </div>
-            <ul className="mt-5 space-y-3 text-sm text-slate-300">
-              <li className="rounded-2xl border border-white/10 bg-white/5 p-4">Backlog trend steepens after day 22 under elevated stochastic noise.</li>
-              <li className="rounded-2xl border border-white/10 bg-white/5 p-4">Regional inventory outperforms central stock in the final week, indicating stronger downstream positioning.</li>
-            </ul>
+            <div className="mt-5 grid gap-3">
+              {["hurricane", "strom", "clear weather"].map((option) => {
+                const isSelected = selectedWeather === option;
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setSelectedWeather(option)}
+                    className={`rounded-2xl border p-4 text-left text-sm transition ${
+                      isSelected
+                        ? "border-amber-300/60 bg-amber-400/10 text-white"
+                        : "border-white/10 bg-white/5 text-slate-300 hover:border-amber-300/30 hover:bg-white/10"
+                    }`}
+                  >
+                    <p className="font-medium capitalize">{option}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {isSelected ? "Selected scenario for the current dashboard view." : "Click to apply this weather mode."}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           </section>
 
           <section className="panel p-5 sm:p-6">
