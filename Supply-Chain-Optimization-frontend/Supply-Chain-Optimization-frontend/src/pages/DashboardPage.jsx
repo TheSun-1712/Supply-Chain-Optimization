@@ -9,7 +9,7 @@ import { formatCurrency, formatTimestamp } from "../lib/formatters";
 import { triggerDisruption } from "../lib/api";
 
 export function DashboardPage() {
-  const { inventory, controls, setControls, generatedAt, status } = useProductionData();
+  const { inventory, controls, setControls, generatedAt, status, connectionError } = useProductionData();
   const latest = inventory.at(-1);
 
   // Live warnings based on actual state
@@ -42,6 +42,12 @@ export function DashboardPage() {
           </div>
         }
       />
+
+      {connectionError && (
+        <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-5 py-4 text-sm text-rose-100">
+          Backend connection failed: {connectionError}. Start the dashboard API with `uvicorn supply_chain_management.server.api:app --reload --port 8000`.
+        </div>
+      )}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3 lg:mb-8">
         <MetricCard

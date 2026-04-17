@@ -1,7 +1,11 @@
 import time
 import requests
-import yfinance as yf
 from typing import Optional, Dict, Any
+
+try:
+    import yfinance as yf
+except ImportError:  # pragma: no cover - optional dependency for local live sync
+    yf = None
 
 class RealWorldService:
     """
@@ -45,6 +49,9 @@ class RealWorldService:
                 condition = "clear"
 
             # 2. Fetch Fuel (WTI Crude Oil)
+            if yf is None:
+                raise RuntimeError("yfinance is not installed")
+
             oil = yf.Ticker("CL=F")
             # fast_info is reliable and fast
             price = oil.fast_info['last_price']

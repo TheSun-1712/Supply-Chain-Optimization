@@ -6,29 +6,34 @@ Run with: uvicorn server.api:app --reload --port 8000
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import sys
 import os
+import secrets
 import threading
 import time as _time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Literal, Optional
 
 # Add parent directory so imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from openai import OpenAI
 
 from env import RetailSupplyChainEnv
 from math_agent import MultiEchelonBaseStockAgent
-from database import init_db, SessionLocal, RLTrajectory, SimulationSession, User
+from database import AppLog, AuthSession, RLTrajectory, SessionLocal, SimulationSession, User, UserCredential, init_db
 from .services import real_world_service
 
 app = FastAPI(title="Supply Chain Co-Pilot API", version="1.0.0")
+auth_scheme = HTTPBearer(auto_error=False)
+SESSION_TTL_HOURS = 12
 
 # Allow React Vite dev server to call this API
 app.add_middleware(
@@ -168,11 +173,89 @@ class ChatBody(BaseModel):
     model: str = "llama3:latest"
 
 
+class RegisterBody(BaseModel):
+    username: str
+    password: str
+
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+
+def _hash_password(password: str, salt: Optional[str] = None) -> str:
+    actual_salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), actual_salt.encode("utf-8"), 200_000).hex()
+    return f"{actual_salt}${digest}"
+
+
+def _verify_password(password: str, stored_password: str) -> bool:
+    if "$" not in stored_password:
+        return hmac.compare_digest(password, stored_password)
+    salt, expected = stored_password.split("$", 1)
+    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000).hex()
+    return hmac.compare_digest(actual, expected)
+
+
+def _create_session_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def _write_app_log(
+    event_type: str,
+    message: str,
+    *,
+    level: str = "INFO",
+    user_id: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    try:
+        with SessionLocal() as db:
+            db.add(
+                AppLog(
+                    user_id=user_id,
+                    level=level,
+                    event_type=event_type,
+                    message=message,
+                    metadata_json=json.dumps(metadata or {}),
+                )
+            )
+            db.commit()
+    except Exception as exc:  # noqa: BLE001
+        print(f"LOGGING ERROR: {exc}")
+
+
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme)) -> User:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+    with SessionLocal() as db:
+        session = (
+            db.query(AuthSession)
+            .filter(
+                AuthSession.token == credentials.credentials,
+                AuthSession.revoked.is_(False),
+            )
+            .first()
+        )
+        if not session or session.expires_at < datetime.utcnow():
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
+
+        user = db.query(User).filter(User.id == session.user_id).first()
+        if not user or not user.credentials or not user.credentials.is_active:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User is inactive")
+        return user
+
+
+def _serialize_user(user: User) -> Dict[str, Any]:
+    return {"id": user.id, "username": user.username}
+
+
 # ─────────────────────────────────────────────────────
 # ENDPOINTS
 # ─────────────────────────────────────────────────────
 @app.get("/api/latest-run")
-def latest_run():
+def latest_run(current_user: User = Depends(get_current_user)):
     obs = sim.obs
     inventory_series = sim.logs[-90:] if sim.logs else []  # send last 90 days max
     return {
@@ -200,7 +283,7 @@ def latest_run():
 
 
 @app.get("/api/logs")
-def get_logs():
+def get_logs(current_user: User = Depends(get_current_user)):
     """RL trajectory logs from the database, formatted for the Logs page."""
     with SessionLocal() as db:
         records = db.query(RLTrajectory).order_by(RLTrajectory.id.desc()).limit(200).all()
@@ -224,8 +307,27 @@ def get_logs():
     return result
 
 
+@app.get("/api/audit-logs")
+def get_audit_logs(current_user: User = Depends(get_current_user)):
+    with SessionLocal() as db:
+        records = db.query(AppLog).order_by(AppLog.created_at.desc()).limit(100).all()
+        result = []
+        for record in records:
+            result.append(
+                {
+                    "timestamp": record.created_at.isoformat(),
+                    "level": record.level,
+                    "eventType": record.event_type,
+                    "message": record.message,
+                    "username": record.user.username if record.user else "system",
+                    "metadata": json.loads(record.metadata_json or "{}"),
+                }
+            )
+        return result
+
+
 @app.get("/api/sei-status")
-def sei_status():
+def sei_status(current_user: User = Depends(get_current_user)):
     with SessionLocal() as db:
         best = db.query(RLTrajectory).order_by(RLTrajectory.step_profit.desc()).first()
 
@@ -253,7 +355,7 @@ def sei_status():
 
 
 @app.post("/api/control")
-def update_controls(body: ControlBody):
+def update_controls(body: ControlBody, current_user: User = Depends(get_current_user)):
     import dataclasses
     if body.simulationLength:
         sim.horizon = body.simulationLength
@@ -263,11 +365,17 @@ def update_controls(body: ControlBody):
         sim.auto_speed_ms = body.autoPlaySpeed
     if body.task_id and body.task_id in ["easy", "medium", "hard"]:
         sim.task_id = body.task_id
+    _write_app_log(
+        "simulation_control",
+        "Simulation controls updated.",
+        user_id=current_user.id,
+        metadata=body.model_dump(exclude_none=True),
+    )
     return {"ok": True}
 
 
 @app.post("/api/disrupt")
-def disrupt(body: DisruptBody):
+def disrupt(body: DisruptBody, current_user: User = Depends(get_current_user)):
     if body.type == "hurricane":
         sim.env.weather_condition = "hurricane"
         sim.env.overseas_route_status = "blocked"
@@ -279,38 +387,140 @@ def disrupt(body: DisruptBody):
         if day < sim.env.cfg.horizon_days:
             idx = day % len(sim.env.cfg.demand_series)
             sim.env.cfg.demand_series[idx] *= 3
+    _write_app_log(
+        "simulation_disruption",
+        f"Applied disruption: {body.type}.",
+        user_id=current_user.id,
+        metadata={"type": body.type},
+    )
     return {"ok": True, "type": body.type}
 
 
 @app.post("/api/sim/play")
-def sim_play():
+def sim_play(current_user: User = Depends(get_current_user)):
     sim.auto_play = True
+    _write_app_log("simulation_play", "Simulation autoplay started.", user_id=current_user.id)
     return {"autoPlay": True}
 
 
 @app.post("/api/sim/pause")
-def sim_pause():
+def sim_pause(current_user: User = Depends(get_current_user)):
     sim.auto_play = False
+    _write_app_log("simulation_pause", "Simulation autoplay paused.", user_id=current_user.id)
     return {"autoPlay": False}
 
 
 @app.post("/api/sim/step")
-def sim_step():
+def sim_step(current_user: User = Depends(get_current_user)):
     entry = sim.step()
+    _write_app_log("simulation_step", "Simulation advanced one step.", user_id=current_user.id, metadata=entry)
     return entry
 
 
 @app.post("/api/sim/reset")
-def sim_reset():
+def sim_reset(current_user: User = Depends(get_current_user)):
     sim.auto_play = False
     sim._reset()
+    _write_app_log("simulation_reset", "Simulation reset.", user_id=current_user.id)
+    return {"ok": True}
+
+
+@app.post("/api/auth/register")
+def register(body: RegisterBody):
+    username = body.username.strip()
+    if len(username) < 3 or len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Username must be 3+ chars and password must be 6+ chars")
+
+    with SessionLocal() as db:
+        existing = db.query(User).filter_by(username=username).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Username already exists")
+
+        user = User(username=username)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.add(
+            UserCredential(
+                user_id=user.id,
+                password_hash=_hash_password(body.password),
+                is_active=True,
+                updated_at=datetime.utcnow(),
+            )
+        )
+        db.commit()
+        user_payload = {"id": user.id, "username": user.username}
+
+    _write_app_log("auth_register", f"User {username} registered.", user_id=user.id)
+    return {"ok": True, "user": user_payload}
+
+
+@app.post("/api/auth/login")
+def login(body: LoginBody):
+    username = body.username.strip()
+    with SessionLocal() as db:
+        user = db.query(User).filter_by(username=username).first()
+        if not user or not user.credentials or not _verify_password(body.password, user.credentials.password_hash):
+            _write_app_log("auth_login_failed", f"Failed login for {username}.", level="WARN")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+
+        if "$" not in user.credentials.password_hash:
+            user.credentials.password_hash = _hash_password(body.password)
+            user.credentials.updated_at = datetime.utcnow()
+
+        token = _create_session_token()
+        db.add(
+            AuthSession(
+                user_id=user.id,
+                token=token,
+                expires_at=datetime.utcnow() + timedelta(hours=SESSION_TTL_HOURS),
+                revoked=False,
+            )
+        )
+        db.commit()
+        user_payload = {"id": user.id, "username": user.username}
+
+    _write_app_log("auth_login", f"User {username} logged in.", user_id=user.id)
+    return {"token": token, "user": user_payload}
+
+
+@app.get("/api/auth/me")
+def auth_me(current_user: User = Depends(get_current_user)):
+    return {"user": _serialize_user(current_user)}
+
+
+@app.post("/api/auth/logout")
+def logout(current_user: User = Depends(get_current_user), credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)):
+    with SessionLocal() as db:
+        session = db.query(AuthSession).filter_by(token=credentials.credentials).first()
+        if session:
+            session.revoked = True
+            db.commit()
+    _write_app_log("auth_logout", f"User {current_user.username} logged out.", user_id=current_user.id)
     return {"ok": True}
 
 
 @app.post("/api/chat")
-def chat(body: ChatBody):
+def chat(body: ChatBody, current_user: User = Depends(get_current_user)):
     obs = sim.obs
-    context = f"""You are a Supply Chain analyst Co-Pilot. Be concise and analytical.
+    context = f"""You are a supply chain financial advisor for business users.
+
+Your style rules:
+- Be concise, precise, and easy to understand.
+- Always use exactly this format:
+  Verdict: ...
+  Why: ...
+  What to do: ...
+- Start `Verdict` with one of: profit, loss, break-even, insufficient stock, or insufficient data.
+- Keep the full reply under 90 words.
+- Use plain business language, not technical jargon.
+- Never invent inventory, shipping cost, price, margin, or revenue numbers.
+- If the requested quantity is greater than available inventory, clearly say fulfillment is not possible from current stock.
+- If key data is missing, say what is missing in one short sentence.
+- If weather and route are unchanged, mention that briefly without overexplaining.
+- Do not show step-by-step math unless the user explicitly asks for calculations.
+
+Current simulation state:
 Current simulation state (Day {obs.day}):
 - Central Inventory: {obs.inventory_central} units
 - Regional Inventory: {obs.inventory_regional} units
@@ -327,16 +537,39 @@ Current simulation state (Day {obs.day}):
             model=body.model,
             messages=[
                 {"role": "system", "content": context},
-                {"role": "user", "content": body.message},
+                {
+                    "role": "user",
+                    "content": (
+                        f"User question: {body.message}\n\n"
+                        "Answer as a financial advisor using exactly the format "
+                        "`Verdict: ...` `Why: ...` `What to do: ...`. "
+                        "If you cannot support the request from the current state, say that directly and briefly."
+                    ),
+                },
             ],
+            temperature=0.2,
         )
-        return {"reply": response.choices[0].message.content}
+        reply = response.choices[0].message.content
+        _write_app_log(
+            "copilot_chat",
+            "AI copilot answered a user question.",
+            user_id=current_user.id,
+            metadata={"question": body.message[:200], "model": body.model},
+        )
+        return {"reply": reply}
     except Exception as e:
+        _write_app_log(
+            "copilot_chat_error",
+            "AI copilot request failed.",
+            level="ERROR",
+            user_id=current_user.id,
+            metadata={"error": str(e)[:200], "model": body.model},
+        )
         return {"reply": f"AI Co-Pilot unavailable: {e}"}
 
 
 @app.get("/api/db-stats")
-def db_stats():
+def db_stats(current_user: User = Depends(get_current_user)):
     with SessionLocal() as db:
         from sqlalchemy import func
         total_trajectories = db.query(RLTrajectory).count()

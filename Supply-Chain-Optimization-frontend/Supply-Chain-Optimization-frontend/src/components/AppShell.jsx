@@ -1,5 +1,6 @@
 import { BarChart3, Boxes, BrainCircuit, FlaskConical, PlayCircle } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
 
 const links = [
   { to: "/app/inventory", label: "Inventory", icon: Boxes },
@@ -10,6 +11,8 @@ const links = [
 ];
 
 export function AppShell() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <aside className="hidden w-80 shrink-0 border-r border-[var(--line)] bg-[var(--panel-strong)]/90 p-6 lg:fixed lg:inset-y-0 lg:block">
@@ -42,12 +45,26 @@ export function AppShell() {
             ))}
           </nav>
 
-          <div className="mt-auto rounded-[28px] border border-[var(--line)] bg-white/90 p-5">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Decision Engine</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">CQL hybrid policy</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Shared layers 256→128→64 with action, quantity, and supplier heads driving recommendation and simulation loops.
-            </p>
+          <div className="mt-auto space-y-4">
+            <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-5">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Decision Engine</p>
+              <p className="mt-2 text-lg font-semibold text-slate-950">CQL hybrid policy</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Shared layers 256-&gt;128-&gt;64 with action, quantity, and supplier heads driving recommendation and simulation loops.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-[var(--line)] bg-white/90 p-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Signed in</p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">{user?.username ?? "Unknown user"}</p>
+              <button
+                className="mt-4 rounded-2xl border border-[var(--line)] bg-white px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                onClick={logout}
+                type="button"
+              >
+                Log out
+              </button>
+            </div>
           </div>
         </div>
       </aside>

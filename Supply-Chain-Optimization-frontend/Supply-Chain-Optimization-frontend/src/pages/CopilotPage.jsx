@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Bot, Send, Loader2, Sparkles } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
+import { apiPost } from "../lib/api";
 
 export function CopilotPage() {
   const [messages, setMessages] = useState([
@@ -29,12 +30,7 @@ export function CopilotPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, model }),
-      });
-      const data = await res.json();
+      const data = await apiPost("/api/chat", { message: trimmed, model });
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
     } catch {
       setMessages((m) => [...m, { role: "assistant", content: "Error: Could not reach Ollama. Make sure it is running on port 11434." }]);

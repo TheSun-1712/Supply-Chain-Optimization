@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import create_engine, Integer, String, Float, ForeignKey, DateTime, Text, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+import os
 
 class Base(DeclarativeBase):
     pass
@@ -13,6 +14,32 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     sessions: Mapped[List["SimulationSession"]] = relationship(back_populates="user")
+    credentials: Mapped[Optional["UserCredential"]] = relationship(back_populates="user")
+    auth_sessions: Mapped[List["AuthSession"]] = relationship(back_populates="user")
+    app_logs: Mapped[List["AppLog"]] = relationship(back_populates="user")
+
+
+class UserCredential(Base):
+    __tablename__ = "user_credentials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="credentials")
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    user: Mapped["User"] = relationship(back_populates="auth_sessions")
 
 class SimulationSession(Base):
     __tablename__ = "simulation_sessions"
@@ -52,6 +79,19 @@ class RLTrajectory(Base):
 
     session: Mapped["SimulationSession"] = relationship(back_populates="trajectories")
 
+
+class AppLog(Base):
+    __tablename__ = "app_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    level: Mapped[str] = mapped_column(String(20), default="INFO")
+    event_type: Mapped[str] = mapped_column(String(80), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    metadata_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[Optional["User"]] = relationship(back_populates="app_logs")
+
 # Initialize SQLite database (Generates the file locally, can be hot-swapped to Postgres URL later)
 DATABASE_URL = "sqlite:///supply_chain.db"
 engine = create_engine(DATABASE_URL, echo=False)
@@ -66,6 +106,17 @@ def init_db():
         if not admin:
             admin = User(username="admin")
             db.add(admin)
+            db.commit()
+            db.refresh(admin)
+
+        if not admin.credentials:
+            admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+            admin_creds = UserCredential(
+                user_id=admin.id,
+                password_hash=admin_password,
+                is_active=True,
+            )
+            db.add(admin_creds)
             db.commit()
 
 if __name__ == "__main__":

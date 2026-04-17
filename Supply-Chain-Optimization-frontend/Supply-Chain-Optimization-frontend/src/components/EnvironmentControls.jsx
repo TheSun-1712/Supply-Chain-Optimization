@@ -1,15 +1,7 @@
 import { AlertTriangle, CloudLightning, Flame, Pause, Play, RefreshCw, SkipForward, TrendingUp } from "lucide-react";
 import { useState } from "react";
+import { apiPost } from "../lib/api";
 import { StatusPill } from "./StatusPill";
-
-async function apiPost(path, body = {}) {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.json().catch(() => ({}));
-}
 
 export function EnvironmentControls({ controls, setControls, status }) {
   const [disrupting, setDisrupting] = useState(null);

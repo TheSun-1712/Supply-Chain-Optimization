@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
 import { loadPlatformStats } from "../lib/api";
 
 function formatK(num) {
@@ -13,6 +14,7 @@ function formatK(num) {
 }
 
 export function LandingPage() {
+  const { isAuthenticated } = useAuth();
   const [stats, setStats] = useState([]);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function LandingPage() {
 
               <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                 <Link
-                  to="/app/dashboard"
+                  to={isAuthenticated ? "/app/dashboard" : "/login"}
                   className="inline-flex items-center justify-center gap-3 rounded-full bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
                 >
                   <Play size={16} />
