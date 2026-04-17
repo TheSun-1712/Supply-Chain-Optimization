@@ -10,11 +10,14 @@ class Shipment(BaseModel):
     quantity: int = Field(ge=0)
     eta_days: int = Field(ge=0)
     expedited: bool = False
+    source: Literal["local", "overseas", "central_hub"]
+    destination: Literal["central", "regional"]
 
 
 class Action(BaseModel):
-    operation: Literal["noop", "order", "expedite", "discount"] = "noop"
+    operation: Literal["noop", "order", "transfer", "expedite", "discount"] = "noop"
     quantity: int = Field(default=0, ge=0, le=500)
+    supplier: Literal["local", "overseas"] = "overseas"
     target_shipment_id: Optional[int] = None
     discount_pct: float = Field(default=0.0, ge=0.0, le=0.5)
     rationale: str = ""
@@ -34,7 +37,11 @@ class Observation(BaseModel):
     task_id: Literal["easy", "medium", "hard"]
     day: int = Field(ge=0)
     horizon_days: int = Field(ge=1)
-    inventory: int
+    inventory_central: int
+    inventory_regional: int
+    weather_condition: Literal["clear", "storm", "hurricane"]
+    fuel_cost_multiplier: float
+    overseas_route_status: Literal["open", "delayed", "blocked"]
     backlog: int = Field(ge=0)
     demand_today: int = Field(ge=0)
     demand_forecast_3d: List[int]
@@ -52,7 +59,11 @@ class Reward(BaseModel):
 class State(BaseModel):
     task_id: Literal["easy", "medium", "hard"]
     day: int
-    inventory: int
+    inventory_central: int
+    inventory_regional: int
+    weather_condition: Literal["clear", "storm", "hurricane"]
+    fuel_cost_multiplier: float
+    overseas_route_status: Literal["open", "delayed", "blocked"]
     backlog: int
     pending_shipments: List[Shipment]
     demand_history: List[int]

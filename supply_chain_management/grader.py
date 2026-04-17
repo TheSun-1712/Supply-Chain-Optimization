@@ -103,23 +103,41 @@ class SupplyChainGrader:
 
 
 def heuristic_policy(observation: Observation, task_id: str) -> Action:
-    cfg = {
-        "easy": {"reorder": 70, "up_to": 100},
-        "medium": {"reorder": 105, "up_to": 145},
-        "hard": {"reorder": 135, "up_to": 190},
+    regional_cfg = {
+        "easy": {"reorder": 80, "up_to": 120},
+        "medium": {"reorder": 130, "up_to": 180},
+        "hard": {"reorder": 180, "up_to": 260},
     }[task_id]
-    inventory_position = observation.inventory + sum(s.quantity for s in observation.in_transit) - observation.backlog
+    central_cfg = {
+        "easy": {"reorder": 180, "up_to": 300},
+        "medium": {"reorder": 240, "up_to": 350},
+        "hard": {"reorder": 320, "up_to": 550},
+    }[task_id]
 
-    if observation.backlog > 18 and observation.in_transit:
+    pending_transfers = sum(s.quantity for s in observation.in_transit if s.destination == "regional")
+    pending_orders = sum(s.quantity for s in observation.in_transit if s.destination == "central")
+
+    regional_position = observation.inventory_regional + pending_transfers - observation.backlog
+    central_position = observation.inventory_central + pending_orders
+
+    if observation.backlog > 15 and observation.in_transit:
         soonest = sorted(observation.in_transit, key=lambda s: s.eta_days)[0]
-        return Action(operation="expedite", target_shipment_id=soonest.shipment_id)
+        if not (soonest.source == "overseas" and observation.overseas_route_status == "blocked"):
+            return Action(operation="expedite", target_shipment_id=soonest.shipment_id)
 
-    if inventory_position < cfg["reorder"]:
-        qty = max(0, cfg["up_to"] - inventory_position)
-        return Action(operation="order", quantity=min(300, qty))
+    if regional_position < regional_cfg["reorder"]:
+        qty = max(0, regional_cfg["up_to"] - regional_position)
+        qty = min(qty, observation.inventory_central)
+        if qty > 0:
+            return Action(operation="transfer", quantity=int(min(450, qty)))
 
-    if observation.inventory > cfg["up_to"] + 35:
-        return Action(operation="discount", discount_pct=0.10)
+    if central_position < central_cfg["reorder"]:
+        qty = max(0, central_cfg["up_to"] - central_position)
+        supplier = "local" if observation.overseas_route_status in ["blocked", "delayed"] else "overseas"
+        return Action(operation="order", quantity=int(min(500, qty)), supplier=supplier)
+
+    if observation.inventory_regional > regional_cfg["up_to"] + 60:
+        return Action(operation="discount", discount_pct=0.15)
 
     return Action(operation="noop")
 
