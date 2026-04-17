@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
@@ -135,17 +136,23 @@ class RetailSupplyChainEnv:
         ),
     }
 
-    def __init__(self, task_id: str = "medium", seed: int = 7):
+    def __init__(self, task_id: str = "medium", seed: int = 7, custom_horizon: int = None):
         if task_id not in self.TASKS:
             raise ValueError(f"Unknown task_id '{task_id}'. Expected one of {list(self.TASKS)}")
         self.task_id = task_id
         self.seed = seed
         self.rng = np.random.default_rng(seed)
+        self.custom_horizon = custom_horizon
         self._shipment_counter = 0
         self.reset()
 
     def reset(self) -> Observation:
-        self.cfg = self.TASKS[self.task_id]
+        base_cfg = self.TASKS[self.task_id]
+        if self.custom_horizon is not None:
+            self.cfg = dataclasses.replace(base_cfg, horizon_days=self.custom_horizon)
+        else:
+            self.cfg = base_cfg
+            
         self.day = 0
         self.inventory_central = self.cfg.initial_inventory_central
         self.inventory_regional = self.cfg.initial_inventory_regional
@@ -256,9 +263,9 @@ class RetailSupplyChainEnv:
         return self._observation(), reward, self.done, info
 
     def _update_environmental_factors(self) -> None:
-        # Fuel Volatility Random Walk
-        noise = float(self.rng.normal(0.0, self.cfg.fuel_volatility))
-        self.fuel_cost_multiplier = float(np.clip(self.fuel_cost_multiplier + noise, 0.5, 2.5))
+        # Heavily tailed volatility using Laplace distribution
+        noise = float(self.rng.laplace(0.0, self.cfg.fuel_volatility))
+        self.fuel_cost_multiplier = float(np.clip(self.fuel_cost_multiplier + noise, 0.5, 3.5))
         
         # Weather Markov Process
         r = float(self.rng.random())
@@ -366,10 +373,10 @@ class RetailSupplyChainEnv:
         return op_cost
 
     def _sample_demand(self, day: int, discount_pct: float) -> int:
-        base = self.cfg.demand_series[day]
+        idx = day % len(self.cfg.demand_series)
+        base = self.cfg.demand_series[idx]
         uplift = 1.0 + self.cfg.discount_sensitivity * discount_pct
-        noise = float(self.rng.normal(0.0, 1.5 if self.task_id != "hard" else 2.5))
-        return max(0, int(round(base * uplift + noise)))
+        return int(self.rng.poisson(base * uplift))
 
     def _build_reward(
         self,
@@ -413,8 +420,9 @@ class RetailSupplyChainEnv:
 
     def _observation(self) -> Observation:
         forecast = []
+        n_demand = len(self.cfg.demand_series)
         for delta in range(1, 4):
-            idx = min(self.day + delta, self.cfg.horizon_days - 1)
+            idx = (self.day + delta) % n_demand
             forecast.append(self.cfg.demand_series[idx])
 
         recent_service = self.service_history[-7:]
@@ -447,6 +455,6 @@ class RetailSupplyChainEnv:
 class SupplyChainEnv(RetailSupplyChainEnv):
     """Backward-compatible alias for older scripts in this repository."""
 
-    def __init__(self, difficulty: str = "medium", seed: int = 7):
+    def __init__(self, difficulty: str = "medium", seed: int = 7, custom_horizon: int = None):
         task_map = {"easy": "easy", "medium": "medium", "hard": "hard"}
-        super().__init__(task_id=task_map.get(difficulty, "medium"), seed=seed)
+        super().__init__(task_id=task_map.get(difficulty, "medium"), seed=seed, custom_horizon=custom_horizon)
