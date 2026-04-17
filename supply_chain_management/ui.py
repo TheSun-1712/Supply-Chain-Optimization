@@ -2,40 +2,84 @@ import time
 from openai import OpenAI
 import streamlit as st
 import pandas as pd
+import json
 from env import RetailSupplyChainEnv
 from math_agent import MultiEchelonBaseStockAgent
+from database import init_db, SessionLocal, User, SimulationSession, RLTrajectory
 
 st.set_page_config(page_title="Supply Chain Co-Pilot", layout="wide")
 
 st.title("📦 Supply Chain Co-Pilot")
 st.markdown("Mathematical `(s, S)` Base-Stock Operations driven simulation, guided by an AI Co-Pilot.")
 
-# 1. State Initialization
+# 1. Sidebar configuration
+st.sidebar.header("Configuration")
+custom_horizon = st.sidebar.slider("Simulation Length (Days)", min_value=21, max_value=5000, value=365)
+task_id = st.sidebar.selectbox("Difficulty Profile", ["easy", "medium", "hard"], index=1)
+ollama_model = st.sidebar.selectbox("Ollama Co-Pilot Model", ["llama3:latest", "qwen3.5:latest"], index=0)
+auto_speed = st.sidebar.slider("Auto-Play Speed (Seconds/Day)", min_value=0.1, max_value=5.0, value=0.1, step=0.1)
+
+# 2. State Initialization
 if "env" not in st.session_state:
-    st.session_state.env = RetailSupplyChainEnv(task_id="medium", seed=17, custom_horizon=90)
+    init_db()
+    with SessionLocal() as db:
+        admin_user = db.query(User).filter_by(username="admin").first()
+        
+        # Create a new Simulation Session in the DB
+        sim_session = SimulationSession(
+            user_id=admin_user.id,
+            task_id=task_id,
+            horizon_days=custom_horizon,
+            seed=17
+        )
+        db.add(sim_session)
+        db.commit()
+        st.session_state.db_session_id = sim_session.id
+
+    st.session_state.env = RetailSupplyChainEnv(task_id=task_id, seed=17, custom_horizon=custom_horizon)
     st.session_state.obs = st.session_state.env.reset()
+    st.session_state.prev_obs_json = st.session_state.obs.model_dump_json() # Keep track of 'State'
     st.session_state.logs = []
     st.session_state.done = False
     st.session_state.agent = MultiEchelonBaseStockAgent()
     st.session_state.auto_play = False
     st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your AI Co-Pilot powered by Qwen. I have access to the real-time simulation state. How can I help?"}]
 
-# 2. Sidebar configuration
-st.sidebar.header("Configuration")
-custom_horizon = st.sidebar.slider("Simulation Length (Days)", min_value=21, max_value=365, value=90)
-task_id = st.sidebar.selectbox("Difficulty Profile", ["easy", "medium", "hard"], index=1)
-ollama_model = st.sidebar.selectbox("Ollama Co-Pilot Model", ["llama3:latest", "qwen3.5:latest"], index=0)
-auto_speed = st.sidebar.slider("Auto-Play Speed (Seconds/Day)", min_value=1.0, max_value=10.0, value=3.0)
+import dataclasses
+if st.session_state.env.cfg.horizon_days != custom_horizon:
+    st.session_state.env.cfg = dataclasses.replace(st.session_state.env.cfg, horizon_days=custom_horizon)
+    st.session_state.env.custom_horizon = custom_horizon
+if st.session_state.env.done and st.session_state.env.day < custom_horizon:
+    st.session_state.env.done = False  # Un-freeze if they intentionally artificially extended the deadline
+    st.session_state.done = False
 
 if st.sidebar.button("Reset Simulation", type="primary"):
+    with SessionLocal() as db:
+        admin_user = db.query(User).filter_by(username="admin").first()
+        sim_session = SimulationSession(
+            user_id=admin_user.id,
+            task_id=task_id,
+            horizon_days=custom_horizon,
+            seed=17
+        )
+        db.add(sim_session)
+        db.commit()
+        st.session_state.db_session_id = sim_session.id
+
     st.session_state.env = RetailSupplyChainEnv(task_id=task_id, seed=17, custom_horizon=custom_horizon)
     st.session_state.obs = st.session_state.env.reset()
+    st.session_state.prev_obs_json = st.session_state.obs.model_dump_json()
     st.session_state.logs = []
     st.session_state.done = False
     st.session_state.agent = MultiEchelonBaseStockAgent()
     st.session_state.auto_play = False
     st.session_state.messages = [{"role": "assistant", "content": "Simulation reset. How can I help?"}]
     st.rerun()
+
+st.sidebar.markdown("---")
+with SessionLocal() as db:
+    total_logs = db.query(RLTrajectory).count()
+st.sidebar.metric("🗄️ Saved Database Logs", total_logs, help="Total historical State/Action/Reward tuples available for RL Training")
 
 st.sidebar.markdown("---")
 st.sidebar.header("God-Mode Disruptions")
@@ -67,10 +111,36 @@ def run_step():
         
     action = agent(obs, env.task_id)
     day = obs.day
-    obs, reward, done, info = env.step(action)
+    next_obs, reward, done, info = env.step(action)
     
-    st.session_state.obs = obs
+    # -------------------------------------------------------------
+    # PHASE 1 RL DB LOGGING: COMMIT (State, Action, Reward, NextState)
+    # -------------------------------------------------------------
+    with SessionLocal() as db:
+        traj = RLTrajectory(
+            session_id=st.session_state.db_session_id,
+            day=day,
+            observation_state_json=st.session_state.prev_obs_json,
+            action_taken_json=action.model_dump_json(),
+            step_profit=info["step_profit"],
+            service_level=info["service_level"],
+            next_state_json=next_obs.model_dump_json(),
+            is_done=done
+        )
+        db.add(traj)
+        
+        if done:
+            sim = db.query(SimulationSession).filter_by(id=st.session_state.db_session_id).first()
+            if sim:
+                sim.final_profit = next_obs.cumulative_profit
+                
+        db.commit()
+    
+    # Cascade states for next loop
+    st.session_state.obs = next_obs
+    st.session_state.prev_obs_json = next_obs.model_dump_json()
     st.session_state.done = done
+    obs = next_obs
     
     # Track verbose variables in the logs directly
     st.session_state.logs.append({
