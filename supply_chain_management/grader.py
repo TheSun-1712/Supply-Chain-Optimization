@@ -114,6 +114,11 @@ def heuristic_policy(observation: Observation, task_id: str) -> Action:
         "hard": {"reorder": 320, "up_to": 550},
     }[task_id]
 
+    if observation.fuel_cost_multiplier > 2.0:
+        regional_cfg["up_to"] = int(regional_cfg["up_to"] * 0.6)
+        central_cfg["up_to"] = int(central_cfg["up_to"] * 0.6)
+        central_cfg["reorder"] = int(central_cfg["reorder"] * 0.8)
+
     pending_transfers = sum(s.quantity for s in observation.in_transit if s.destination == "regional")
     pending_orders = sum(s.quantity for s in observation.in_transit if s.destination == "central")
 

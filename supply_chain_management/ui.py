@@ -24,7 +24,8 @@ if "env" not in st.session_state:
 st.sidebar.header("Configuration")
 custom_horizon = st.sidebar.slider("Simulation Length (Days)", min_value=21, max_value=365, value=90)
 task_id = st.sidebar.selectbox("Difficulty Profile", ["easy", "medium", "hard"], index=1)
-# Removed Ollama model input box to avoid confusion since the openai client logic handles it below natively for qwen3.5
+ollama_model = st.sidebar.selectbox("Ollama Co-Pilot Model", ["llama3:latest", "qwen3.5:latest"], index=0)
+auto_speed = st.sidebar.slider("Auto-Play Speed (Seconds/Day)", min_value=1.0, max_value=10.0, value=3.0)
 
 if st.sidebar.button("Reset Simulation", type="primary"):
     st.session_state.env = RetailSupplyChainEnv(task_id=task_id, seed=17, custom_horizon=custom_horizon)
@@ -42,6 +43,7 @@ col_a, col_b = st.sidebar.columns(2)
 if col_a.button("Hurricane"):
     st.session_state.env.weather_condition = "hurricane"
     st.session_state.env.overseas_route_status = "blocked"
+    st.session_state.env.manual_weather_override = 5 # 5 days unbreakable override
     st.sidebar.success("Hurricane Triggered!")
 
 if col_b.button("Fuel Spike"):
@@ -83,6 +85,8 @@ def run_step():
         "Agent Action": action.operation.upper(),
         "Qty": action.quantity,
         "Supplier": action.supplier if action.operation == "order" else "",
+        "Revenue ($)": round(info["revenue"], 2),
+        "Total Costs ($)": round(info["op_cost"] + info["holding_cost"] + info["backlog_penalty"], 2),
         "Daily Profit ($)": round(info["step_profit"], 2),
         "Total Profit ($)": round(obs.cumulative_profit, 2),
     })
@@ -92,9 +96,23 @@ left_col, right_col = st.columns([2, 1])
 
 with left_col:
     st.header("Simulation Dashboard")
-    st.session_state.auto_play = st.checkbox("Auto-Play (3s interval)", value=st.session_state.auto_play)
-    if st.button("Step Forward 1 Day"):
+    
+    # Execution Controls
+    col_play, col_pause, col_step = st.columns(3)
+    if col_play.button("▶ Auto-Play", use_container_width=True):
+        st.session_state.auto_play = True
+        st.rerun()
+    if col_pause.button("⏸ Pause", use_container_width=True):
+        st.session_state.auto_play = False
+        st.rerun()
+    if col_step.button("⏭ Step Forward", use_container_width=True):
+        st.session_state.auto_play = False
         run_step()
+
+    if st.session_state.auto_play:
+        st.success("Auto-Play is RUNNING")
+    else:
+        st.warning("Simulation is PAUSED")
         
     if st.session_state.auto_play and not st.session_state.done:
         run_step()
@@ -104,6 +122,20 @@ with left_col:
     m2.metric("Route Status", st.session_state.env.overseas_route_status.title())
     m3.metric("Fuel Mult", f"{st.session_state.env.fuel_cost_multiplier:.2f}x")
     m4.metric("Cumulative Profit", f"${st.session_state.obs.cumulative_profit:,.2f}")
+
+    if len(st.session_state.logs) > 0:
+        latest = st.session_state.logs[-1]
+        st.markdown("### Stock & Finances")
+        s1, s2, s3, s4 = st.columns(4)
+        
+        total_stock = latest["Central Inv"] + latest["Regional Inv"]
+        target_stock = st.session_state.env.cfg.target_inventory_regional + st.session_state.env.cfg.initial_inventory_central
+        deficit = total_stock - target_stock
+        
+        s1.metric("Total Available Stock", f"{total_stock:,}", delta=f"{deficit} units vs Target", delta_color="normal")
+        s2.metric("Current Backlog", f"{latest['Backlog']}", delta="Unfulfilled Demands", delta_color="inverse")
+        s3.metric("Today's Expenses", f"${latest['Total Costs ($)']:,.2f}")
+        s4.metric("Today's Revenue", f"${latest['Revenue ($)']:,.2f}", f"${latest['Daily Profit ($)']:,.2f} Net Profit")
     
     if len(st.session_state.logs) > 0:
         df = pd.DataFrame(st.session_state.logs)
@@ -159,7 +191,7 @@ User asks: {prompt}"""
                 client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
                 
                 response = client.chat.completions.create(
-                    model="qwen3.5:latest",
+                    model=ollama_model,
                     messages=[
                         {"role": "system", "content": context},
                         {"role": "user", "content": prompt}
@@ -173,5 +205,5 @@ User asks: {prompt}"""
             st.session_state.messages.append({"role": "assistant", "content": reply})
 
 if st.session_state.auto_play and not st.session_state.done:
-    time.sleep(3)
+    time.sleep(auto_speed)
     st.rerun()

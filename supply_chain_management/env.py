@@ -169,6 +169,7 @@ class RetailSupplyChainEnv:
         self.weather_condition = "clear"
         self.fuel_cost_multiplier = 1.0
         self.overseas_route_status = "open"
+        self.manual_weather_override = 0
 
         return self._observation()
 
@@ -259,25 +260,34 @@ class RetailSupplyChainEnv:
             "fulfilled": fulfilled,
             "service_level": service_level,
             "step_profit": step_profit,
+            "revenue": revenue,
+            "op_cost": op_cost,
+            "holding_cost": holding_central + holding_regional,
+            "backlog_penalty": backlog_penalty
         }
         return self._observation(), reward, self.done, info
 
     def _update_environmental_factors(self) -> None:
         # Heavily tailed volatility using Laplace distribution
         noise = float(self.rng.laplace(0.0, self.cfg.fuel_volatility))
-        self.fuel_cost_multiplier = float(np.clip(self.fuel_cost_multiplier + noise, 0.5, 3.5))
+        # Mean reversion pull towards 1.0
+        pull = (1.0 - self.fuel_cost_multiplier) * 0.1
+        self.fuel_cost_multiplier = float(np.clip(self.fuel_cost_multiplier + noise + pull, 0.5, 3.5))
         
         # Weather Markov Process
-        r = float(self.rng.random())
-        if r < self.cfg.weather_hurricane_prob:
-            self.weather_condition = "hurricane"
-            self.overseas_route_status = "blocked"
-        elif r < self.cfg.weather_hurricane_prob + self.cfg.weather_storm_prob:
-            self.weather_condition = "storm"
-            self.overseas_route_status = "delayed"
+        if hasattr(self, 'manual_weather_override') and self.manual_weather_override > 0:
+            self.manual_weather_override -= 1
         else:
-            self.weather_condition = "clear"
-            self.overseas_route_status = "open"
+            r = float(self.rng.random())
+            if r < self.cfg.weather_hurricane_prob:
+                self.weather_condition = "hurricane"
+                self.overseas_route_status = "blocked"
+            elif r < self.cfg.weather_hurricane_prob + self.cfg.weather_storm_prob:
+                self.weather_condition = "storm"
+                self.overseas_route_status = "delayed"
+            else:
+                self.weather_condition = "clear"
+                self.overseas_route_status = "open"
 
     def _process_shipments(self) -> Dict[str, int]:
         arrivals = {"central": 0, "regional": 0}
