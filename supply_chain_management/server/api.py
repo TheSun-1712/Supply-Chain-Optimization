@@ -10,6 +10,7 @@ import hmac
 import json
 import sys
 import os
+from pathlib import Path
 import secrets
 import threading
 import time as _time
@@ -29,7 +30,8 @@ from openai import OpenAI
 from env import RetailSupplyChainEnv
 from analysis_prompts import build_chat_context
 from math_agent import MultiEchelonBaseStockAgent
-from database import init_db, SessionLocal, RLTrajectory, SimulationSession, User
+from database import AppLog, AuthSession, init_db, SessionLocal, RLTrajectory, SimulationSession, User, UserCredential
+from train_rl import train_hybrid_dqn
 from .services import producer_intel_service, real_world_service
 
 app = FastAPI(title="Supply Chain Co-Pilot API", version="1.0.0")
@@ -128,8 +130,13 @@ class SimState:
         # Pull live world data if in sync mode
         rw = real_world_service.get_latest()
         self.env.inject_real_world_data(rw['weather'], rw['fuel_multiplier'], rw)
+        intel = producer_intel_service.get_latest()
+        self.env.inject_market_risk_data(intel, ttl_steps=3)
 
-        print(f"DEBUG: Sim Step Complete -> Day {day} | Profit: {entry['profit']} | World: {rw['status']}")
+        print(
+            f"DEBUG: Sim Step Complete -> Day {day} | Profit: {entry['profit']} | "
+            f"World: {rw['status']} | Intel: {intel.get('status', 'unknown')}"
+        )
         return entry
 
 
@@ -158,6 +165,68 @@ _auto_play_thread = threading.Thread(target=_auto_play_loop, daemon=True)
 _auto_play_thread.start()
 
 
+_BASE_DIR = Path(__file__).resolve().parents[1]
+_RL_MODEL_CANDIDATES = [
+    _BASE_DIR / "rl_offline_dqn_optimized.pth",
+    _BASE_DIR / "rl_offline_dqn.pth",
+    _BASE_DIR / "rl_behavioral_clone.pth",
+]
+
+_rl_training_state: Dict[str, Any] = {
+    "status": "idle",
+    "message": "No training job started yet.",
+    "lastStartedAt": None,
+    "lastCompletedAt": None,
+    "lastError": None,
+    "lastEpochs": None,
+    "useProducerIntel": True,
+}
+
+
+def _detect_rl_model_file() -> Optional[Path]:
+    for path in _RL_MODEL_CANDIDATES:
+        if path.exists():
+            return path
+    return None
+
+
+def _serialize_rl_model_status() -> Dict[str, Any]:
+    model_path = _detect_rl_model_file()
+    model_loaded = model_path is not None
+    model_updated_at = None
+    model_size_bytes = None
+    if model_loaded and model_path is not None:
+        stat = model_path.stat()
+        model_updated_at = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+        model_size_bytes = stat.st_size
+
+    return {
+        "modelLoaded": model_loaded,
+        "modelPath": str(model_path) if model_loaded and model_path else None,
+        "modelUpdatedAt": model_updated_at,
+        "modelSizeBytes": model_size_bytes,
+        "training": dict(_rl_training_state),
+    }
+
+
+def _run_producer_training_job(epochs: int, batch_size: int, lr: float) -> None:
+    _rl_training_state["status"] = "running"
+    _rl_training_state["message"] = "Training in progress with producer intelligence signals."
+    _rl_training_state["lastStartedAt"] = datetime.now(timezone.utc).isoformat()
+    _rl_training_state["lastError"] = None
+    _rl_training_state["lastEpochs"] = epochs
+    try:
+        train_hybrid_dqn(epochs=epochs, batch_size=batch_size, lr=lr)
+        _rl_training_state["status"] = "completed"
+        _rl_training_state["message"] = "Training completed and optimized model refreshed."
+        _rl_training_state["lastCompletedAt"] = datetime.now(timezone.utc).isoformat()
+    except Exception as exc:  # noqa: BLE001
+        _rl_training_state["status"] = "failed"
+        _rl_training_state["message"] = "Training failed."
+        _rl_training_state["lastError"] = str(exc)
+        _rl_training_state["lastCompletedAt"] = datetime.now(timezone.utc).isoformat()
+
+
 # ─────────────────────────────────────────────────────
 # REQUEST BODIES
 # ─────────────────────────────────────────────────────
@@ -183,6 +252,12 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     username: str
     password: str
+
+
+class TrainProducerBody(BaseModel):
+    epochs: int = 20
+    batchSize: int = 128
+    learningRate: float = 1e-4
 
 
 def _hash_password(password: str, salt: Optional[str] = None) -> str:
@@ -227,11 +302,24 @@ def _write_app_log(
         print(f"LOGGING ERROR: {exc}")
 
 
-def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme)) -> User:
-    if not credentials or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+def _get_default_user(db) -> User:
+    user = db.query(User).filter_by(username="admin").first()
+    if user is None:
+        user = User(username="admin")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
 
+
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme)) -> User:
     with SessionLocal() as db:
+        default_user = _get_default_user(db)
+
+        # In no-auth dashboard mode, gracefully fall back to the default admin user.
+        if not credentials or credentials.scheme.lower() != "bearer":
+            return default_user
+
         session = (
             db.query(AuthSession)
             .filter(
@@ -241,11 +329,11 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
             .first()
         )
         if not session or session.expires_at < datetime.utcnow():
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
+            return default_user
 
         user = db.query(User).filter(User.id == session.user_id).first()
-        if not user or not user.credentials or not user.credentials.is_active:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User is inactive")
+        if not user or (user.credentials and not user.credentials.is_active):
+            return default_user
         return user
 
 
@@ -494,10 +582,11 @@ def auth_me(current_user: User = Depends(get_current_user)):
 @app.post("/api/auth/logout")
 def logout(current_user: User = Depends(get_current_user), credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)):
     with SessionLocal() as db:
-        session = db.query(AuthSession).filter_by(token=credentials.credentials).first()
-        if session:
-            session.revoked = True
-            db.commit()
+        if credentials and credentials.credentials:
+            session = db.query(AuthSession).filter_by(token=credentials.credentials).first()
+            if session:
+                session.revoked = True
+                db.commit()
     _write_app_log("auth_logout", f"User {current_user.username} logged out.", user_id=current_user.id)
     return {"ok": True}
 
@@ -560,6 +649,49 @@ def db_stats(current_user: User = Depends(get_current_user)):
         "bestMargin": round(margin, 1),
         "optimizedDecisions": total_trajectories,
         "totalSessions": total_sessions
+    }
+
+
+@app.get("/api/rl/model-status")
+def rl_model_status(current_user: User = Depends(get_current_user)):
+    return _serialize_rl_model_status()
+
+
+@app.post("/api/rl/train-producer")
+def train_with_producer_data(body: TrainProducerBody, current_user: User = Depends(get_current_user)):
+    if _rl_training_state.get("status") == "running":
+        return {
+            "ok": False,
+            "message": "Training already running.",
+            "status": _serialize_rl_model_status(),
+        }
+
+    epochs = max(5, min(int(body.epochs), 300))
+    batch_size = max(32, min(int(body.batchSize), 512))
+    learning_rate = max(1e-6, min(float(body.learningRate), 1e-2))
+
+    thread = threading.Thread(
+        target=_run_producer_training_job,
+        args=(epochs, batch_size, learning_rate),
+        daemon=True,
+    )
+    thread.start()
+
+    _write_app_log(
+        "rl_training_started",
+        "Started RL training with producer intelligence features.",
+        user_id=current_user.id,
+        metadata={
+            "epochs": epochs,
+            "batchSize": batch_size,
+            "learningRate": learning_rate,
+        },
+    )
+
+    return {
+        "ok": True,
+        "message": "Training started.",
+        "status": _serialize_rl_model_status(),
     }
 
 

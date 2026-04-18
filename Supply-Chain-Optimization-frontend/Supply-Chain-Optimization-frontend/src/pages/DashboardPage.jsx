@@ -1,4 +1,5 @@
-import { Activity, AlertTriangle, CloudLightning, Sparkles, Globe, CloudSun } from "lucide-react";
+import { Activity, AlertTriangle, BrainCircuit, CloudLightning, Sparkles, Globe, CloudSun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { EnvironmentControls } from "../components/EnvironmentControls";
 import { InventoryChart } from "../components/InventoryChart";
 import { MetricCard } from "../components/MetricCard";
@@ -6,11 +7,52 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusPill } from "../components/StatusPill";
 import { useProductionData } from "../hooks/useProductionData.jsx";
 import { formatCurrency, formatTimestamp } from "../lib/formatters";
-import { triggerDisruption } from "../lib/api";
+import { loadRlModelStatus, trainRlWithProducerData, triggerDisruption } from "../lib/api";
 
 export function DashboardPage() {
   const { inventory, controls, setControls, generatedAt, status, connectionError } = useProductionData();
+  const [rlStatus, setRlStatus] = useState(null);
+  const [rlBusy, setRlBusy] = useState(false);
+  const [rlError, setRlError] = useState(null);
   const latest = inventory.at(-1);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshRlStatus() {
+      try {
+        const payload = await loadRlModelStatus();
+        if (!active) return;
+        setRlStatus(payload);
+        setRlError(null);
+      } catch (error) {
+        if (!active) return;
+        setRlError(error.message || "Failed to load RL model status");
+      }
+    }
+
+    refreshRlStatus();
+    const id = window.setInterval(refreshRlStatus, 6000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const startProducerTraining = async () => {
+    setRlBusy(true);
+    setRlError(null);
+    try {
+      const payload = await trainRlWithProducerData({ epochs: 25, batchSize: 128, learningRate: 0.0001 });
+      if (payload?.status) {
+        setRlStatus(payload.status);
+      }
+    } catch (error) {
+      setRlError(error.message || "Could not start RL training");
+    } finally {
+      setRlBusy(false);
+    }
+  };
 
   // Live warnings based on actual state
   const warnings = [];
@@ -98,6 +140,46 @@ export function DashboardPage() {
                 Use <span className="text-amber-200">Disruptions</span> to inject realistic crises, or rely on the <span className="text-emerald-400 font-semibold">Real-World Sync</span> to pull live Singapore weather and WTI oil prices.
               </p>
             </div>
+          </section>
+
+          <section className="panel p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-3 text-violet-200">
+                <BrainCircuit size={18} />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs uppercase tracking-[0.24em] text-violet-200/80">RL Model</p>
+                <h3 className="text-lg font-semibold text-white">Loaded policy and training</h3>
+              </div>
+              <StatusPill tone={rlStatus?.training?.status === "running" ? "amber" : "emerald"}>
+                {rlStatus?.training?.status === "running" ? "Training" : "Ready"}
+              </StatusPill>
+            </div>
+
+            <div className="mt-5 space-y-3 text-sm text-slate-300">
+              <p>
+                Model file: <span className="text-slate-100">{rlStatus?.modelLoaded ? "Loaded" : "Not found"}</span>
+              </p>
+              <p>
+                Last updated: <span className="text-slate-100">{rlStatus?.modelUpdatedAt ? formatTimestamp(rlStatus.modelUpdatedAt) : "--"}</span>
+              </p>
+              <p>
+                Training message: <span className="text-slate-100">{rlStatus?.training?.message ?? "--"}</span>
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={startProducerTraining}
+                disabled={rlBusy || rlStatus?.training?.status === "running"}
+                className="rounded-2xl border border-violet-400/30 bg-violet-400/15 px-4 py-2 text-sm font-medium text-violet-100 transition hover:bg-violet-400/25 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {rlBusy || rlStatus?.training?.status === "running" ? "Training..." : "Train With Producer Data"}
+              </button>
+            </div>
+
+            {rlError && <p className="mt-3 text-xs text-rose-300">{rlError}</p>}
           </section>
 
           <section className="panel p-5 sm:p-6">

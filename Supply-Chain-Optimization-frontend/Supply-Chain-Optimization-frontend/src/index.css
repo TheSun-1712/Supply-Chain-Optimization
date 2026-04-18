@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f3eb;
-  --panel: rgba(255, 255, 255, 0.78);
-  --panel-strong: #ebe5d8;
-  --line: rgba(71, 85, 105, 0.16);
-  --line-strong: rgba(71, 85, 105, 0.24);
-  --ink: #0f172a;
-  --muted: #475569;
-  --accent: #0f766e;
-  --accent-soft: rgba(15, 118, 110, 0.14);
-  --alert: #b45309;
+  --bg: #070a14;
+  --bg-deep: #030611;
+  --panel: linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+  --panel-strong: rgba(9, 14, 28, 0.86);
+  --line: rgba(148, 163, 184, 0.24);
+  --line-strong: rgba(148, 163, 184, 0.38);
+  --ink: #e6edf9;
+  --muted: #8ea0bc;
+  --accent: #6ce4ff;
+  --accent-soft: rgba(108, 228, 255, 0.14);
+  --alert: #f59e0b;
 }
 
 html {
@@ -21,11 +22,12 @@ html {
 
 body {
   @apply m-0 antialiased;
-  font-family: "Trebuchet MS", "Segoe UI Variable", "Gill Sans", sans-serif;
+  font-family: "Avenir Next", "Segoe UI Variable", "Trebuchet MS", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 26%),
-    radial-gradient(circle at top right, rgba(180, 83, 9, 0.09), transparent 20%),
-    linear-gradient(180deg, #f8f4ed 0%, #f3efe7 100%);
+    radial-gradient(circle at 8% 12%, rgba(0, 214, 255, 0.22), transparent 23%),
+    radial-gradient(circle at 92% 16%, rgba(52, 211, 153, 0.18), transparent 22%),
+    radial-gradient(circle at 50% 110%, rgba(168, 85, 247, 0.12), transparent 30%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
   color: var(--ink);
 }
 
@@ -34,52 +36,70 @@ body {
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.16);
+  background: rgba(108, 228, 255, 0.24);
 }
 
 .panel {
-  @apply rounded-[28px] border p-5 sm:p-6;
+  @apply relative rounded-[28px] border p-5 sm:p-6;
   border-color: var(--line);
   background: var(--panel);
-  box-shadow: 0 20px 50px rgba(148, 163, 184, 0.12);
-  backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 30px 65px rgba(2, 6, 23, 0.55),
+    0 2px 14px rgba(45, 212, 191, 0.08);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+.panel::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(130deg, rgba(255, 255, 255, 0.12), transparent 45%);
+  opacity: 0.7;
 }
 
 .input {
-  @apply w-full rounded-2xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition;
+  @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition;
   border-color: var(--line);
+  background: rgba(2, 6, 23, 0.52);
+  color: #e5ecf8;
 }
 
 .input:focus {
-  border-color: rgba(15, 118, 110, 0.45);
-  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+  border-color: rgba(108, 228, 255, 0.65);
+  box-shadow: 0 0 0 4px rgba(108, 228, 255, 0.16);
 }
 
 .button-primary {
   @apply rounded-2xl px-4 py-3 text-sm font-semibold text-white transition;
-  background: linear-gradient(135deg, #0f172a 0%, #0f766e 100%);
+  background: linear-gradient(140deg, #22d3ee 0%, #2563eb 45%, #22c55e 100%);
+  box-shadow: 0 14px 30px rgba(34, 211, 238, 0.3);
 }
 
 .button-primary:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.01);
 }
 
 .button-secondary {
-  @apply rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition;
+  @apply rounded-2xl border px-4 py-3 text-sm font-semibold text-slate-100 transition;
   border-color: var(--line);
+  background: rgba(15, 23, 42, 0.55);
 }
 
 .metric-card {
-  @apply rounded-[24px] border bg-white/80 p-5;
+  @apply rounded-[24px] border p-5;
   border-color: var(--line);
+  background: rgba(15, 23, 42, 0.48);
 }
 
 .section-title {
-  @apply text-2xl font-semibold tracking-tight text-slate-950;
+  @apply text-2xl font-semibold tracking-tight text-slate-100;
 }
 
 .section-copy {
-  @apply mt-2 max-w-3xl text-sm leading-6 text-slate-600;
+  @apply mt-2 max-w-3xl text-sm leading-6 text-slate-300;
 }
 
 .table-shell {
@@ -92,10 +112,53 @@ table {
 }
 
 th {
-  @apply bg-slate-950 px-4 py-3 text-left text-xs uppercase tracking-[0.22em] text-slate-300;
+  @apply bg-slate-900/90 px-4 py-3 text-left text-xs uppercase tracking-[0.22em] text-slate-200;
 }
 
 td {
-  @apply border-t px-4 py-3 align-top text-sm text-slate-700;
+  @apply border-t px-4 py-3 align-top text-sm text-slate-200;
   border-color: var(--line);
+}
+
+.grid-surface {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, #67e8f9, #34d399, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.animate-reveal {
+  animation: revealUp 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-float {
+  animation: glassFloat 7s ease-in-out infinite;
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glassFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }

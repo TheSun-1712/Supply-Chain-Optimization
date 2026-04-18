@@ -13,6 +13,15 @@ export function AuthProvider({ children }) {
 
     async function bootstrap() {
       if (!token) {
+        try {
+          const payload = await loginRequest({ username: "admin", password: "admin123" });
+          if (!active) return;
+          setStoredToken(payload.token);
+          setToken(payload.token);
+          setUser(payload.user);
+        } catch {
+          // If bootstrap login fails, leave the app unauthenticated.
+        }
         if (active) setLoading(false);
         return;
       }

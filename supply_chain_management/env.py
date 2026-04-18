@@ -49,6 +49,72 @@ class RetailSupplyChainEnv:
 
     metadata = {"version": "3.0.0", "domain": "retail-demand-planning"}
 
+    GLOBAL_RISK_LIBRARY: List[Dict[str, Any]] = [
+        {
+            "region": "Taiwan",
+            "product": "semiconductors",
+            "brief": "Foundry capacity and export-control tension can lift chip input costs.",
+            "proc_hike": 0.28,
+            "demand_hike": 0.10,
+            "duration_min": 4,
+            "duration_max": 10,
+        },
+        {
+            "region": "Middle East",
+            "product": "oil and petrochemicals",
+            "brief": "Energy route risk can increase fuel, plastics, and logistics costs globally.",
+            "proc_hike": 0.33,
+            "demand_hike": 0.06,
+            "duration_min": 5,
+            "duration_max": 12,
+        },
+        {
+            "region": "China",
+            "product": "rare earths and battery materials",
+            "brief": "Mineral and processing controls can tighten battery and electronics inputs.",
+            "proc_hike": 0.26,
+            "demand_hike": 0.08,
+            "duration_min": 4,
+            "duration_max": 9,
+        },
+        {
+            "region": "Indonesia",
+            "product": "nickel",
+            "brief": "Nickel supply shocks can raise EV and electronics component costs.",
+            "proc_hike": 0.22,
+            "demand_hike": 0.05,
+            "duration_min": 3,
+            "duration_max": 8,
+        },
+        {
+            "region": "India",
+            "product": "pharma active ingredients",
+            "brief": "API export disruption can create shortages and rush-order premiums.",
+            "proc_hike": 0.18,
+            "demand_hike": 0.07,
+            "duration_min": 3,
+            "duration_max": 7,
+        },
+        {
+            "region": "Ukraine / Black Sea",
+            "product": "grain and fertilizer",
+            "brief": "Black Sea logistics pressure can impact food and packaging demand.",
+            "proc_hike": 0.17,
+            "demand_hike": 0.12,
+            "duration_min": 4,
+            "duration_max": 9,
+        },
+        {
+            "region": "Global Shipping Lanes",
+            "product": "container logistics",
+            "brief": "Port congestion and route disruptions can create broad lead-time and cost spikes.",
+            "proc_hike": 0.24,
+            "demand_hike": 0.09,
+            "duration_min": 4,
+            "duration_max": 11,
+        },
+    ]
+
     TASKS: Dict[str, TaskConfig] = {
         "easy": TaskConfig(
             task_id="easy",
@@ -171,6 +237,18 @@ class RetailSupplyChainEnv:
         self.overseas_route_status = "open"
         self.manual_weather_override = 0
         self.real_world_data: Dict[str, Any] = {}
+        self.current_risk_event: Dict[str, Any] | None = None
+        self.risk_days_remaining = 0
+        self.global_risk_score = 0.0
+        self.expected_procurement_hike_7d = 0.0
+        self.expected_demand_hike_7d = 0.0
+        self.risk_hotspot_region = "Global"
+        self.risk_hotspot_product = "general inputs"
+        self.risk_brief = "No significant disruption signal."
+        self.risk_signals: List[Dict[str, Any]] = []
+        self.recommended_preorder_qty = 0
+        self.external_risk_override: Dict[str, Any] | None = None
+        self.external_risk_override_steps_remaining = 0
 
         return self._observation()
 
@@ -187,6 +265,40 @@ class RetailSupplyChainEnv:
             self.overseas_route_status = "delayed"
         else:
             self.overseas_route_status = "open"
+
+    def inject_market_risk_data(self, intel: Dict[str, Any], ttl_steps: int = 3):
+        """Inject live market-risk forecast from external producer intelligence."""
+        if not isinstance(intel, dict):
+            return
+
+        signals = intel.get("signals") if isinstance(intel.get("signals"), list) else []
+        top_signal = signals[0] if signals else {}
+
+        risk_raw = float(intel.get("riskScore") or 0.0)
+        risk_norm = float(np.clip(risk_raw / 5.0, 0.0, 1.0))
+        top_severity = float(np.clip(float(top_signal.get("severity") or 0.0) / 5.0, 0.0, 1.0))
+
+        local_products = top_signal.get("local_products") if isinstance(top_signal.get("local_products"), list) else []
+        affected_parts = top_signal.get("affected_parts") if isinstance(top_signal.get("affected_parts"), list) else []
+        hotspot_product = (
+            str(local_products[0]) if local_products else (
+                str(affected_parts[0]) if affected_parts else str(top_signal.get("theme") or "general inputs")
+            )
+        )
+
+        proc_hike = float(np.clip(0.08 + 0.47 * risk_norm + 0.20 * top_severity, 0.0, 0.8))
+        demand_hike = float(np.clip(0.04 + 0.34 * risk_norm + 0.10 * top_severity, 0.0, 0.6))
+
+        self.external_risk_override = {
+            "risk_score": risk_norm,
+            "proc_hike": proc_hike,
+            "demand_hike": demand_hike,
+            "region": str(top_signal.get("region") or "Global"),
+            "product": hotspot_product,
+            "brief": str(intel.get("summary") or top_signal.get("likely_disruption") or "Live market-risk signal applied."),
+            "signals": list(signals[:6]),
+        }
+        self.external_risk_override_steps_remaining = max(1, int(ttl_steps))
 
     def state(self) -> State:
         return State(
@@ -205,6 +317,11 @@ class RetailSupplyChainEnv:
             no_progress_steps=self.no_progress_steps,
             done=self.done,
             config=self.cfg.__dict__.copy(),
+            global_risk_score=round(self.global_risk_score, 4),
+            expected_procurement_hike_7d=round(self.expected_procurement_hike_7d, 4),
+            expected_demand_hike_7d=round(self.expected_demand_hike_7d, 4),
+            risk_hotspot_region=self.risk_hotspot_region,
+            risk_hotspot_product=self.risk_hotspot_product,
         )
 
     def step(self, action: Action) -> Tuple[Observation, Reward, bool, Dict[str, Any]]:
@@ -216,6 +333,7 @@ class RetailSupplyChainEnv:
 
         # 1. Update Environment Factors (Fuel & Weather)
         self._update_environmental_factors()
+        self._update_global_market_risk()
 
         # 2. Process Arrivals
         arrivals = self._process_shipments()
@@ -343,11 +461,11 @@ class RetailSupplyChainEnv:
             self._shipment_counter += 1
             if action.supplier == "overseas":
                 lead_time = int(self.rng.integers(self.cfg.overseas_lead_time_min, self.cfg.overseas_lead_time_max + 1))
-                unit_cost = self.cfg.overseas_unit_cost
+                unit_cost = self.cfg.overseas_unit_cost * (1.0 + 1.1 * self.expected_procurement_hike_7d)
                 fixed_cost = self.cfg.fixed_order_overseas
             else:
                 lead_time = int(self.rng.integers(self.cfg.local_lead_time_min, self.cfg.local_lead_time_max + 1))
-                unit_cost = self.cfg.local_unit_cost
+                unit_cost = self.cfg.local_unit_cost * (1.0 + 0.7 * self.expected_procurement_hike_7d)
                 fixed_cost = self.cfg.fixed_order_local
             
             self.pending_shipments.append(
@@ -400,8 +518,84 @@ class RetailSupplyChainEnv:
     def _sample_demand(self, day: int, discount_pct: float) -> int:
         idx = day % len(self.cfg.demand_series)
         base = self.cfg.demand_series[idx]
-        uplift = 1.0 + self.cfg.discount_sensitivity * discount_pct
+        uplift = 1.0 + self.cfg.discount_sensitivity * discount_pct + 0.9 * self.expected_demand_hike_7d
         return int(self.rng.poisson(base * uplift))
+
+    def _refresh_preorder_recommendation(self) -> None:
+        n_demand = len(self.cfg.demand_series)
+        horizon_forecast = [self.cfg.demand_series[(self.day + delta) % n_demand] for delta in range(1, 4)]
+        avg_daily = float(np.mean(horizon_forecast)) if horizon_forecast else 0.0
+        target_cover_days = 4.0 + 7.0 * self.expected_demand_hike_7d
+        pending_central = sum(s.quantity for s in self.pending_shipments if s.destination == "central")
+        target_stock = avg_daily * target_cover_days
+        self.recommended_preorder_qty = int(
+            np.clip(max(0.0, target_stock - (self.inventory_central + pending_central)), 0.0, 500.0)
+        )
+
+    def _update_global_market_risk(self) -> None:
+        if self.external_risk_override and self.external_risk_override_steps_remaining > 0:
+            override = self.external_risk_override
+            self.external_risk_override_steps_remaining -= 1
+
+            fuel_risk = max(0.0, self.fuel_cost_multiplier - 1.0)
+            route_risk = 0.14 if self.overseas_route_status == "blocked" else (0.07 if self.overseas_route_status == "delayed" else 0.0)
+            self.expected_procurement_hike_7d = float(np.clip(float(override["proc_hike"]) + 0.10 * fuel_risk + route_risk, 0.0, 0.8))
+            self.expected_demand_hike_7d = float(np.clip(float(override["demand_hike"]) + 0.04 * fuel_risk, 0.0, 0.6))
+            self.global_risk_score = float(np.clip(0.55 * self.expected_procurement_hike_7d + 0.45 * self.expected_demand_hike_7d, 0.0, 1.0))
+            self.risk_hotspot_region = str(override["region"])
+            self.risk_hotspot_product = str(override["product"])
+            self.risk_brief = str(override["brief"])
+            self.risk_signals = list(override.get("signals", []))
+            self._refresh_preorder_recommendation()
+            return
+
+        spawn_prob = {"easy": 0.07, "medium": 0.11, "hard": 0.16}[self.task_id]
+
+        if self.risk_days_remaining <= 0:
+            self.current_risk_event = None
+            if float(self.rng.random()) < spawn_prob:
+                idx = int(self.rng.integers(0, len(self.GLOBAL_RISK_LIBRARY)))
+                event = self.GLOBAL_RISK_LIBRARY[idx]
+                self.current_risk_event = event
+                self.risk_days_remaining = int(self.rng.integers(event["duration_min"], event["duration_max"] + 1))
+        else:
+            self.risk_days_remaining -= 1
+
+        if self.current_risk_event:
+            decay = np.clip(self.risk_days_remaining / 10.0, 0.35, 1.0)
+            proc_noise = float(self.rng.normal(0.0, 0.02))
+            demand_noise = float(self.rng.normal(0.0, 0.015))
+            proc_hike = float(np.clip(self.current_risk_event["proc_hike"] * decay + proc_noise, 0.0, 0.6))
+            demand_hike = float(np.clip(self.current_risk_event["demand_hike"] * decay + demand_noise, 0.0, 0.5))
+            self.risk_hotspot_region = self.current_risk_event["region"]
+            self.risk_hotspot_product = self.current_risk_event["product"]
+            self.risk_brief = self.current_risk_event["brief"]
+        else:
+            proc_hike = max(0.0, float(self.expected_procurement_hike_7d * 0.65))
+            demand_hike = max(0.0, float(self.expected_demand_hike_7d * 0.7))
+            self.risk_hotspot_region = "Global"
+            self.risk_hotspot_product = "general inputs"
+            self.risk_brief = "No significant disruption signal."
+
+        # Fuel and route pressure amplify procurement hikes.
+        fuel_risk = max(0.0, self.fuel_cost_multiplier - 1.0)
+        route_risk = 0.14 if self.overseas_route_status == "blocked" else (0.07 if self.overseas_route_status == "delayed" else 0.0)
+        self.expected_procurement_hike_7d = float(np.clip(proc_hike + 0.12 * fuel_risk + route_risk, 0.0, 0.8))
+        self.expected_demand_hike_7d = float(np.clip(demand_hike + 0.05 * fuel_risk, 0.0, 0.6))
+        self.global_risk_score = float(np.clip(0.55 * self.expected_procurement_hike_7d + 0.45 * self.expected_demand_hike_7d, 0.0, 1.0))
+
+        self._refresh_preorder_recommendation()
+
+        self.risk_signals = [
+            {
+                "region": self.risk_hotspot_region,
+                "product": self.risk_hotspot_product,
+                "risk_score": round(self.global_risk_score, 3),
+                "procurement_hike_7d": round(self.expected_procurement_hike_7d, 3),
+                "demand_hike_7d": round(self.expected_demand_hike_7d, 3),
+                "brief": self.risk_brief,
+            }
+        ]
 
     def _build_reward(
         self,
@@ -418,9 +612,16 @@ class RetailSupplyChainEnv:
         profit_term = float(np.clip((step_profit + 450.0) / 900.0, 0.0, 1.0))
         backlog_term = 1.0 if self.backlog == 0 else max(0.0, 1.0 - self.backlog / 120.0)
         anti_loop_penalty = 0.12 if (self.no_progress_steps >= 2 and action.operation in ["noop", "discount"]) else 0.0
+        anticipation_bonus = 0.0
+        if action.operation == "order" and action.quantity > 0 and self.expected_procurement_hike_7d >= 0.16:
+            anticipation_bonus += min(0.12, 0.03 + 0.00018 * action.quantity + 0.11 * self.expected_procurement_hike_7d)
+        if action.operation == "transfer" and action.quantity > 0 and self.expected_demand_hike_7d >= 0.14:
+            anticipation_bonus += min(0.09, 0.02 + 0.00012 * action.quantity + 0.09 * self.expected_demand_hike_7d)
+        if self.inventory_central > self.cfg.initial_inventory_central * 2.3:
+            anticipation_bonus = max(0.0, anticipation_bonus - 0.04)
 
         value = 0.42 * service_term + 0.22 * stock_term + 0.22 * profit_term + 0.14 * backlog_term
-        value = float(np.clip(value - anti_loop_penalty, 0.0, 1.0))
+        value = float(np.clip(value + anticipation_bonus - anti_loop_penalty, 0.0, 1.0))
 
         return Reward(
             value=value,
@@ -429,6 +630,7 @@ class RetailSupplyChainEnv:
                 "stock_health": round(stock_term, 4),
                 "profit_quality": round(profit_term, 4),
                 "backlog_control": round(backlog_term, 4),
+                "anticipation_bonus": round(anticipation_bonus, 4),
                 "anti_loop_penalty": round(anti_loop_penalty, 4),
             },
         )
@@ -455,7 +657,11 @@ class RetailSupplyChainEnv:
         guidance = (
             "Keep regional inventory high while controlling backlog and central holding costs. "
             "Use overseas routes for cheap supply unless weather/fuel dictates otherwise. "
-            "Transfer stock to regional ahead of demand spikes."
+            "Transfer stock to regional ahead of demand spikes. "
+            f"Global risk hotspot: {self.risk_hotspot_region} ({self.risk_hotspot_product}). "
+            f"Expected 7-day procurement hike: {self.expected_procurement_hike_7d:.2f}; "
+            f"demand hike: {self.expected_demand_hike_7d:.2f}. "
+            f"Recommended preorder quantity: {self.recommended_preorder_qty}."
         )
 
         return Observation(
@@ -474,6 +680,14 @@ class RetailSupplyChainEnv:
             service_level_7d=service_level_7d,
             cumulative_profit=round(self.cumulative_profit, 2),
             guidance=guidance,
+            global_risk_score=round(self.global_risk_score, 3),
+            expected_procurement_hike_7d=round(self.expected_procurement_hike_7d, 3),
+            expected_demand_hike_7d=round(self.expected_demand_hike_7d, 3),
+            recommended_preorder_qty=self.recommended_preorder_qty,
+            risk_hotspot_region=self.risk_hotspot_region,
+            risk_hotspot_product=self.risk_hotspot_product,
+            risk_brief=self.risk_brief,
+            risk_signals=list(self.risk_signals),
         )
 
 

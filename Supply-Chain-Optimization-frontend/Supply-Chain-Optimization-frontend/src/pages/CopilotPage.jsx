@@ -44,22 +44,17 @@ export function CopilotPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, model, analysisMode: activeMode }),
-      });
-      const data = await res.json();
+      const data = await apiPost("/chat", { message: trimmed, model, analysisMode: activeMode });
       setThreads((prev) => ({
         ...prev,
         [activeMode]: [...prev[activeMode], { role: "assistant", content: data.reply }],
       }));
-    } catch {
+    } catch (error) {
       setThreads((prev) => ({
         ...prev,
         [activeMode]: [
           ...prev[activeMode],
-          { role: "assistant", content: "Error: Could not reach Ollama. Make sure it is running on port 11434." },
+          { role: "assistant", content: `Error: ${error?.message || "Could not reach Ollama. Make sure it is running on port 11434."}` },
         ],
       }));
     }

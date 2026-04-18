@@ -49,6 +49,14 @@ class Observation(BaseModel):
     service_level_7d: float = Field(ge=0.0, le=1.0)
     cumulative_profit: float
     guidance: str
+    global_risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    expected_procurement_hike_7d: float = Field(default=0.0, ge=0.0, le=1.0)
+    expected_demand_hike_7d: float = Field(default=0.0, ge=0.0, le=1.0)
+    recommended_preorder_qty: int = Field(default=0, ge=0, le=1000)
+    risk_hotspot_region: str = "Global"
+    risk_hotspot_product: str = "general inputs"
+    risk_brief: str = ""
+    risk_signals: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class Reward(BaseModel):
@@ -72,6 +80,11 @@ class State(BaseModel):
     no_progress_steps: int
     done: bool
     config: Dict[str, Any]
+    global_risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    expected_procurement_hike_7d: float = Field(default=0.0, ge=0.0, le=1.0)
+    expected_demand_hike_7d: float = Field(default=0.0, ge=0.0, le=1.0)
+    risk_hotspot_region: str = "Global"
+    risk_hotspot_product: str = "general inputs"
 
 
 class StepResult(BaseModel):

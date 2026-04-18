@@ -126,6 +126,21 @@ def heuristic_policy(observation: Observation, task_id: str) -> Action:
     regional_position = observation.inventory_regional + pending_transfers - observation.backlog
     central_position = observation.inventory_central + pending_orders
 
+    # Global risk-aware anticipation: pre-order upstream components before expected hikes.
+    if observation.expected_procurement_hike_7d >= 0.18 and central_position < int(central_cfg["up_to"] * 1.35):
+        qty = max(observation.recommended_preorder_qty, int(central_cfg["up_to"] * 1.35 - central_position))
+        qty = int(min(500, max(0, qty)))
+        if qty > 0:
+            supplier = "overseas" if observation.overseas_route_status == "open" else "local"
+            return Action(operation="order", quantity=qty, supplier=supplier)
+
+    # If global demand hike is expected, push more stock to regional node early.
+    if observation.expected_demand_hike_7d >= 0.14 and regional_position < int(regional_cfg["up_to"] * 1.2):
+        qty = int(min(450, max(0, int(regional_cfg["up_to"] * 1.2) - regional_position)))
+        qty = min(qty, observation.inventory_central)
+        if qty > 0:
+            return Action(operation="transfer", quantity=qty)
+
     if observation.backlog > 15 and observation.in_transit:
         soonest = sorted(observation.in_transit, key=lambda s: s.eta_days)[0]
         if not (soonest.source == "overseas" and observation.overseas_route_status == "blocked"):

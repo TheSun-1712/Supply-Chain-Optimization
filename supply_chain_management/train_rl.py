@@ -1,18 +1,29 @@
 import json
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import copy
 import numpy as np
-from database import SessionLocal, RLTrajectory
+from database import SessionLocal, RLTrajectory, SimulationSession, User, init_db
+from env import RetailSupplyChainEnv
+from grader import heuristic_policy
+
+try:
+    from server.services import producer_intel_service
+except Exception:  # pragma: no cover - optional live-risk dependency
+    producer_intel_service = None
 
 # ---------------------------------------------------------
 # 1. DATA PROCESSING (Bellman Tuple + Z-Score Normalization)
 # ---------------------------------------------------------
 class SupplyChainDataset(Dataset):
     def __init__(self):
+        init_db()
         with SessionLocal() as db:
             self.records = db.query(RLTrajectory).all()
             
@@ -29,6 +40,38 @@ class SupplyChainDataset(Dataset):
         self.route_map = {"open": 0.0, "delayed": 1.0, "blocked": 2.0}
         self.op_map = {"noop": 0, "order": 1, "transfer": 2, "expedite": 3, "discount": 4}
         self.supplier_map = {"local": 0, "overseas": 1}
+
+    @staticmethod
+    def _encode_region(region: str) -> float:
+        region_key = str(region or "").lower()
+        region_map = {
+            "global": 0.0,
+            "taiwan": 0.15,
+            "middle east": 0.30,
+            "china": 0.45,
+            "south korea": 0.60,
+            "israel": 0.75,
+            "ukraine": 0.90,
+        }
+        for key, value in region_map.items():
+            if key in region_key:
+                return value
+        return 0.05
+
+    @staticmethod
+    def _encode_product(product: str) -> float:
+        product_key = str(product or "").lower()
+        if any(k in product_key for k in ["semiconductor", "chip"]):
+            return 0.15
+        if any(k in product_key for k in ["oil", "fuel", "petro"]):
+            return 0.35
+        if any(k in product_key for k in ["battery", "nickel", "rare earth", "cobalt"]):
+            return 0.55
+        if any(k in product_key for k in ["grain", "fertilizer", "food"]):
+            return 0.75
+        if any(k in product_key for k in ["shipping", "logistics", "container"]):
+            return 0.9
+        return 0.05
 
     def __len__(self):
         return len(self.records)
@@ -50,6 +93,13 @@ class SupplyChainDataset(Dataset):
             self.weather_map.get(obs.get("weather_condition", "clear"), 0.0) / 2.0,
             self.route_map.get(obs.get("overseas_route_status", "open"), 0.0) / 2.0,
             obs.get("fuel_cost_multiplier", 1.0) / 3.5,
+            obs.get("global_risk_score", 0.0),
+            obs.get("expected_procurement_hike_7d", 0.0),
+            obs.get("expected_demand_hike_7d", 0.0),
+            obs.get("recommended_preorder_qty", 0) / 500.0,
+            self._encode_region(str(obs.get("risk_hotspot_region", "Global"))),
+            self._encode_product(str(obs.get("risk_hotspot_product", "general"))),
+            float(obs.get("expected_procurement_hike_7d", 0.0)) * float(obs.get("expected_demand_hike_7d", 0.0)),
         ]
         return torch.tensor(features, dtype=torch.float32)
 
@@ -76,7 +126,7 @@ class SupplyChainDataset(Dataset):
 # 2. NEURAL NETWORK ARCHITECTURE
 # ---------------------------------------------------------
 class SupplyChainAgentNN(nn.Module):
-    def __init__(self, input_dim=11):
+    def __init__(self, input_dim=18):
         super().__init__()
         self.fc_shared = nn.Sequential(
             nn.Linear(input_dim, 256),
@@ -104,6 +154,7 @@ class SupplyChainAgentNN(nn.Module):
 # 3. OPTIMIZED OFFLINE CQL TRAINING LOOP
 # ---------------------------------------------------------
 def train_hybrid_dqn(epochs=100, batch_size=128, lr=1e-4, gamma=0.99, target_update_freq=5, cql_alpha=1.0):
+    _bootstrap_risk_aware_trajectories(min_records=1500)
     dataset = SupplyChainDataset()
     if len(dataset) < 100:
         print("Not enough data. Please generate more DB transitions!")
@@ -111,7 +162,7 @@ def train_hybrid_dqn(epochs=100, batch_size=128, lr=1e-4, gamma=0.99, target_upd
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     
-    policy_net = SupplyChainAgentNN(input_dim=11)
+    policy_net = SupplyChainAgentNN(input_dim=18)
     target_net = copy.deepcopy(policy_net)
     target_net.eval()
     
@@ -209,7 +260,105 @@ def train_hybrid_dqn(epochs=100, batch_size=128, lr=1e-4, gamma=0.99, target_upd
     
     plt.tight_layout()
     plt.savefig("optimized_dqn_metrics.png")
-    plt.show()
+    plt.close()
+
+
+def _bootstrap_risk_aware_trajectories(min_records: int = 1500, max_new_records: int = 4000) -> None:
+    """Generate diverse trajectories with global-risk-aware policy when DB is sparse."""
+    init_db()
+
+    with SessionLocal() as db:
+        existing = db.query(RLTrajectory).count()
+        if existing >= min_records:
+            print(f"RL data bootstrap skipped: existing transitions={existing}")
+            return
+
+        user = db.query(User).filter_by(username="admin").first()
+        if user is None:
+            user = User(username="admin")
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        needed = min(max_new_records, max(0, min_records - existing))
+        print(f"Bootstrapping RL trajectories: existing={existing}, needed={needed}")
+
+        generated = 0
+        task_cycle = ["easy", "medium", "hard"]
+        seed = 17
+
+        while generated < needed:
+            task_id = task_cycle[generated % len(task_cycle)]
+            env = RetailSupplyChainEnv(task_id=task_id, seed=seed)
+            obs = env.reset()
+
+            sim = SimulationSession(
+                user_id=user.id,
+                task_id=task_id,
+                horizon_days=env.cfg.horizon_days,
+                seed=seed,
+            )
+            db.add(sim)
+            db.flush()
+
+            done = False
+            while not done and generated < needed:
+                if producer_intel_service is not None:
+                    try:
+                        live_intel = producer_intel_service.get_latest()
+                        env.inject_market_risk_data(live_intel, ttl_steps=2)
+                    except Exception:
+                        pass
+
+                # 15% exploratory noise to broaden offline action coverage.
+                if random.random() < 0.15:
+                    op = random.choice(["noop", "order", "transfer", "discount"])
+                    if op == "order":
+                        action = {
+                            "operation": "order",
+                            "quantity": random.randint(40, 500),
+                            "supplier": random.choice(["local", "overseas"]),
+                        }
+                    elif op == "transfer":
+                        action = {
+                            "operation": "transfer",
+                            "quantity": random.randint(30, 450),
+                        }
+                    elif op == "discount":
+                        action = {
+                            "operation": "discount",
+                            "discount_pct": round(random.uniform(0.05, 0.25), 2),
+                        }
+                    else:
+                        action = {"operation": "noop"}
+                else:
+                    action_obj = heuristic_policy(obs, task_id)
+                    action = action_obj.model_dump()
+
+                prev_obs_json = obs.model_dump_json()
+                next_obs, _, done, info = env.step(action)
+
+                db.add(
+                    RLTrajectory(
+                        session_id=sim.id,
+                        day=obs.day,
+                        observation_state_json=prev_obs_json,
+                        action_taken_json=json.dumps(action),
+                        step_profit=float(info.get("step_profit", 0.0)),
+                        service_level=float(info.get("service_level", 0.0)),
+                        next_state_json=next_obs.model_dump_json(),
+                        is_done=bool(done),
+                    )
+                )
+
+                obs = next_obs
+                generated += 1
+
+            sim.final_profit = float(env.cumulative_profit)
+            seed += 1
+
+        db.commit()
+        print(f"Bootstrapping complete: generated={generated}")
 
 if __name__ == "__main__":
     train_hybrid_dqn(epochs=100)

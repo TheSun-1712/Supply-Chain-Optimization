@@ -5,7 +5,7 @@ import {
   mockProducerDashboard,
 } from "../data/mockData";
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.DEV ? "http://127.0.0.1:8001/api" : "/api";
 const TOKEN_KEY = "flowsync_auth_token";
 
 export function getStoredToken() {
@@ -28,7 +28,29 @@ export function authHeaders(extraHeaders = {}) {
   };
 }
 
-async function request(path, options = {}) {
+async function bootstrapDefaultSession() {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ username: "admin", password: "admin123" }),
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const payload = await response.json();
+  if (payload?.token) {
+    setStoredToken(payload.token);
+    return true;
+  }
+
+  return false;
+}
+
+async function request(path, options = {}, { retryOnUnauthorized = true } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: authHeaders({
@@ -41,9 +63,17 @@ async function request(path, options = {}) {
     return null;
   }
 
-  const data = await response.json();
+  if (response.status === 401 && retryOnUnauthorized && !path.startsWith("/auth/")) {
+    const bootstrapped = await bootstrapDefaultSession();
+    if (bootstrapped) {
+      return request(path, options, { retryOnUnauthorized: false });
+    }
+  }
+
+  const rawBody = await response.text();
+  const data = rawBody ? JSON.parse(rawBody) : null;
   if (!response.ok) {
-    throw new Error(data.detail || "Request failed");
+    throw new Error(data?.detail || rawBody || "Request failed");
   }
   return data;
 }
@@ -53,6 +83,16 @@ export async function apiPost(path, body = {}) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function ensureDefaultAdminSession() {
+  const token = getStoredToken();
+  if (token) {
+    return token;
+  }
+
+  const bootstrapped = await bootstrapDefaultSession();
+  return bootstrapped ? getStoredToken() : null;
 }
 
 export function listProducts() {
@@ -245,7 +285,7 @@ export async function triggerDisruption(type) {
 
 export async function loadProducerDashboard() {
   try {
-    const payload = await fetchJson("/api/producer-dashboard");
+    const payload = await request("/producer-dashboard");
     return {
       generatedAt: payload.generatedAt ?? null,
       status: payload.status ?? null,
@@ -254,4 +294,12 @@ export async function loadProducerDashboard() {
   } catch {
     return mockProducerDashboard;
   }
+}
+
+export async function loadRlModelStatus() {
+  return request("/rl/model-status");
+}
+
+export async function trainRlWithProducerData(payload = {}) {
+  return apiPost("/rl/train-producer", payload);
 }
