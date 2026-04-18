@@ -10,14 +10,15 @@ class Shipment(BaseModel):
     quantity: int = Field(ge=0)
     eta_days: int = Field(ge=0)
     expedited: bool = False
-    source: Literal["local", "overseas", "central_hub"]
-    destination: Literal["central", "regional"]
+    source: Literal["local", "overseas", "central_hub", "raw_vendor"]
+    destination: Literal["central", "regional", "factory"]
+    material_type: Literal["raw", "finished"] = "finished"
 
 
 class Action(BaseModel):
-    operation: Literal["noop", "order", "transfer", "expedite", "discount"] = "noop"
+    operation: Literal["noop", "order", "transfer", "expedite", "discount", "procurre_raw", "manufacture"] = "noop"
     quantity: int = Field(default=0, ge=0, le=500)
-    supplier: Literal["local", "overseas"] = "overseas"
+    supplier: Literal["local", "overseas", "raw_vendor"] = "overseas"
     target_shipment_id: Optional[int] = None
     discount_pct: float = Field(default=0.0, ge=0.0, le=0.5)
     rationale: str = ""
@@ -39,8 +40,11 @@ class Observation(BaseModel):
     horizon_days: int = Field(ge=1)
     inventory_central: int
     inventory_regional: int
+    inventory_raw_material: int = 0
     weather_condition: Literal["clear", "storm", "hurricane"]
     fuel_cost_multiplier: float
+    shock_magnitude: float = 0.0
+    geopolitical_event: Literal["stable", "unrest", "sanctions", "trade_war"] = "stable"
     overseas_route_status: Literal["open", "delayed", "blocked"]
     backlog: int = Field(ge=0)
     demand_today: int = Field(ge=0)
@@ -61,8 +65,11 @@ class State(BaseModel):
     day: int
     inventory_central: int
     inventory_regional: int
+    inventory_raw_material: int = 0
     weather_condition: Literal["clear", "storm", "hurricane"]
     fuel_cost_multiplier: float
+    shock_magnitude: float = 0.0
+    geopolitical_event: Literal["stable", "unrest", "sanctions", "trade_war"] = "stable"
     overseas_route_status: Literal["open", "delayed", "blocked"]
     backlog: int
     pending_shipments: List[Shipment]

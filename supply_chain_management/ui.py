@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
+import json
 from env import RetailSupplyChainEnv
 from math_agent import MultiEchelonBaseStockAgent
+from database import SessionLocal, RLTrajectory
 
 st.set_page_config(page_title="Supply Chain Sim", layout="wide")
 
@@ -28,7 +30,24 @@ if st.sidebar.button("Run Simulation", type="primary"):
     while not done:
         action = agent(obs, task_id)
         day = obs.day
+        
+        # Capture state before step for RL
+        state_json = obs.model_dump_json()
+        action_json = action.model_dump_json()
+
         obs, reward, done, info = env.step(action)
+        
+        # Save to Database for RL Training
+        with SessionLocal() as db:
+            traj = RLTrajectory(
+                task_id=task_id,
+                day=day,
+                observation_state_json=state_json,
+                action_taken_json=action_json,
+                reward=float(reward.value)
+            )
+            db.add(traj)
+            db.commit()
         
         logs.append({
             "Day": day,
