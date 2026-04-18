@@ -85,14 +85,6 @@ export function AppShell() {
           </nav>
 
           <div className="mt-auto space-y-4">
-            <div className="rounded-[28px] border border-[var(--line)] bg-slate-900/55 p-5 backdrop-blur-xl">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Decision Engine</p>
-              <p className="mt-2 text-lg font-semibold text-slate-100">CQL hybrid policy</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Shared layers 256-&gt;128-&gt;64 with action, quantity, and supplier heads driving recommendation and simulation loops.
-              </p>
-            </div>
-
             <div className="rounded-3xl border border-[var(--line)] bg-slate-900/55 p-4 backdrop-blur-xl">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Signed in</p>
               <p className="mt-2 text-sm font-semibold text-slate-100">{user?.username ?? "Unknown user"}</p>
