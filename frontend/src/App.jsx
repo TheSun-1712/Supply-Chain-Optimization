@@ -63,6 +63,7 @@ function App() {
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({ name: '', central: 0, regional: 0, inTransit: 0 });
   const [intel, setIntel] = useState(null);
+  const [fullscreenChart, setFullscreenChart] = useState(null);
 
   const fetchModelStatus = useCallback(async () => {
     try {
@@ -290,7 +291,7 @@ function App() {
       )}
       
       <div className="hero">
-        <h1 className="animate-float">Supply Chain Command Center</h1>
+        <h1 className="animate-float">FlowSync Command Center</h1>
         <p>Real-time autonomous optimization with Manufacturing & Geopolitical resilience.</p>
       </div>
 
@@ -302,13 +303,21 @@ function App() {
             <span>Raw Materials</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon red"><Icons.Globe /></div>
+        <div className={`stat-card ${(intel?.magnitude || 0) > 0.5 ? 'animate-pulse-red' : ''}`} style={{ transition: 'all 0.5s ease' }}>
+          <div className={`stat-icon ${(intel?.magnitude || 0) > 0.5 ? 'red' : 'amber'}`}>
+            <Icons.Globe />
+          </div>
           <div className="stat-info">
-            <div className={`shock-indicator ${(advState?.shock_magnitude || 0) > 0.4 ? 'critical' : 'stable'}`}>
-              <Icons.Zap /> {Math.round((advState?.shock_magnitude || 0) * 100)}% Risk
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}>
+              <span style={{ fontSize: '1.2rem' }}>{Math.round((intel?.magnitude || 0) * 100)}%</span>
+              <span className={`badge ${ (intel?.magnitude || 0) > 0.6 ? 'badge-rose' : (intel?.magnitude || 0) > 0.3 ? 'badge-amber' : 'badge-green' }`}>
+                {intel?.event?.toUpperCase().replace('_', ' ') || 'STABLE'}
+              </span>
             </div>
-            <span>Geopolitical Shock</span>
+            <div className="risk-bar-container">
+              <div className="risk-bar-fill" style={{ width: `${(intel?.magnitude || 0) * 100}%`, background: (intel?.magnitude || 0) > 0.6 ? 'var(--accent-rose)' : 'var(--accent-amber)' }} />
+            </div>
+            <span>Global Shock Index</span>
           </div>
         </div>
         <div className="stat-card">
@@ -562,8 +571,85 @@ function App() {
     </div>
   );
 
+  const renderRolloutChart = (isFull = false) => (
+    <div className="chart-wrapper" style={{ padding: isFull ? '20px 40px' : '0 10px 10px 20px' }}>
+      <div className="chart-container" style={{ height: isFull ? '50vh' : '160px', width: '100%', position: 'relative', borderLeft: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+          <path d={`M ${liveRollout.map((val, i) => `${(i / (liveRollout.length - 1)) * 1000},${300 - (val.profit / 15000) * 300}`).join(' L ')}`} fill="none" stroke="#10b981" strokeWidth={isFull ? "4" : "3"} />
+          <path d={`M ${liveRollout.map((val, i) => `${(i / (liveRollout.length - 1)) * 1000},${300 - (val.inventory / 1000) * 300}`).join(' L ')}`} fill="none" stroke="#3b82f6" strokeWidth={isFull ? "4" : "3"} />
+          
+          {/* Axis Labels */}
+          <text x="500" y={isFull ? "360" : "345"} fill="var(--text-muted)" fontSize={isFull ? "20" : "26"} textAnchor="middle" style={{ opacity: 0.5, fontWeight: 600, letterSpacing: '1px' }}>SIMULATION TIMELINE</text>
+          <text x="-80" y="150" fill="var(--text-muted)" fontSize={isFull ? "20" : "26"} textAnchor="middle" transform="rotate(-90, -80, 150)" style={{ opacity: 0.5, fontWeight: 600, letterSpacing: '1px' }}>MAGNITUDE</text>
+        </svg>
+      </div>
+      
+      {/* Legend / Secondary Labels */}
+      <div style={isFull ? {
+        position: 'absolute', top: '80px', right: '40px', display: 'flex', flexDirection: 'column', gap: '0.75rem', 
+        background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', backdropFilter: 'blur(10px)'
+      } : {
+        display: 'flex', gap: '1.5rem', marginTop: '2.5rem', fontSize: '0.7rem', justifyContent: 'center', opacity: 0.8
+      }}>
+        <span style={{ color: '#10b981', fontWeight: 600 }}>● Profit</span>
+        <span style={{ color: '#3b82f6', fontWeight: 600 }}>● Inventory</span>
+      </div>
+    </div>
+  );
+
+  const renderLossChart = (isFull = false) => (
+    <div className="chart-wrapper" style={{ padding: isFull ? '20px 40px' : '0 10px 10px 20px' }}>
+      <div className="chart-container" style={{ height: isFull ? '50vh' : '160px', width: '100%', position: 'relative', borderLeft: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+          <path d={`M ${trainingHistory.map((val, i) => `${(i / (trainingHistory.length - 1)) * 1000},${300 - (val / 3.0) * 300}`).join(' L ')}`} fill="none" stroke="var(--accent-purple)" strokeWidth={isFull ? "4" : "3"} />
+          
+          {/* Axis Labels */}
+          <text x="500" y={isFull ? "360" : "345"} fill="var(--text-muted)" fontSize={isFull ? "20" : "26"} textAnchor="middle" style={{ opacity: 0.5, fontWeight: 600, letterSpacing: '1px' }}>TRAINING ITERATIONS</text>
+          <text x="-80" y="150" fill="var(--text-muted)" fontSize={isFull ? "20" : "26"} textAnchor="middle" transform="rotate(-90, -80, 150)" style={{ opacity: 0.5, fontWeight: 600, letterSpacing: '1px' }}>LOSS MAGNITUDE</text>
+        </svg>
+      </div>
+
+      <div style={isFull ? {
+        position: 'absolute', top: '80px', right: '40px', background: 'rgba(255,255,255,0.05)', padding: '1rem', 
+        borderRadius: '12px', border: '1px solid var(--border)', backdropFilter: 'blur(10px)', color: 'var(--accent-purple)', fontWeight: 600
+      } : {
+        textAlign: 'center', marginTop: '2.5rem', fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.8, letterSpacing: '0.5px'
+      }}>
+        {isFull ? '● LEARNING PRECISION (NN LOSS)' : 'LEARNING PRECISION (NN LOSS)'}
+      </div>
+    </div>
+  );
+
+  const renderFullscreenModal = () => {
+    if (!fullscreenChart) return null;
+    return (
+      <div className="modal-overlay" onClick={() => setFullscreenChart(null)} style={{ background: 'rgba(5, 7, 10, 0.9)', zIndex: 1000 }}>
+        <div className="modal-content card" style={{ width: '90vw', maxWidth: '1200px', padding: '2.5rem', position: 'relative' }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>
+              {fullscreenChart === 'rollout' ? 'Rollout Performance Analysis' : 'Intelligence Growth Telemetry'}
+            </h2>
+            <button 
+              className="nav-link" 
+              onClick={() => setFullscreenChart(null)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border)' }}
+            >
+              <Icons.X size={18} /> <span>Close</span>
+            </button>
+          </div>
+          {fullscreenChart === 'rollout' ? renderRolloutChart(true) : renderLossChart(true)}
+          <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', fontSize: '0.95rem', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+            <strong>FlowSync Insight:</strong> {fullscreenChart === 'rollout' ? 'The green line represents real-time profitability generated by the current NN policy. The blue line tracks inventory buffers across the network.' : 'A downward trending purple line confirms the model is successfully identifying optimal decision patterns from simulation history.'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAdvisor = () => (
-    <div className="card">
+    <div className="advisor-view">
+      {renderFullscreenModal()}
+      <div className="card">
       <div className="card-header">
         <div className="card-header-icon purple"><Icons.Brain /></div>
         <h2>AI Operations Advisor</h2>
@@ -680,67 +766,36 @@ function App() {
 
         {/* --- LIVE TELEMETRY GRAPHS --- */}
         <div className="main-grid" style={{ marginTop: '2rem' }}>
-          <div className="card">
+          <div className="card" onClick={() => setFullscreenChart('rollout')} style={{ cursor: 'zoom-in' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div className="card-header-icon blue"><Icons.Play /></div>
                 <h2 style={{ fontSize: '1rem' }}>Rollout Performance</h2>
               </div>
-              {liveRollout.length > 0 && (
-                <div className="status-tag risky" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem' }}>
-                  <div className="status-dot risky" style={{ animation: 'pulse 1.5s infinite' }} />
-                  ACTIVE
-                </div>
-              )}
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Click to Expand</div>
             </div>
             <div className="card-body">
-              {liveRollout.length > 0 ? (
-                <div className="chart-wrapper" style={{ padding: '0 10px 20px 20px' }}>
-                  <div className="chart-container" style={{ height: '180px', width: '100%', position: 'relative', borderLeft: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
-                      <path d={`M ${liveRollout.map((val, i) => `${(i / (liveRollout.length - 1)) * 1000},${300 - (val.profit / 15000) * 300}`).join(' L ')}`} fill="none" stroke="#10b981" strokeWidth="3" />
-                      <path d={`M ${liveRollout.map((val, i) => `${(i / (liveRollout.length - 1)) * 1000},${300 - (val.inventory / 1000) * 300}`).join(' L ')}`} fill="none" stroke="#3b82f6" strokeWidth="3" />
-                    </svg>
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', fontSize: '0.65rem', justifyContent: 'center' }}>
-                    <span style={{ color: '#10b981' }}>● Profit</span>
-                    <span style={{ color: '#3b82f6' }}>● Inventory</span>
-                  </div>
-                </div>
-              ) : <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Waiting for rollout...</p>}
+              {liveRollout.length > 0 ? renderRolloutChart() : <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Waiting for rollout...</p>}
             </div>
           </div>
 
-          <div className="card">
+          <div className="card" onClick={() => setFullscreenChart('loss')} style={{ cursor: 'zoom-in' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div className="card-header-icon purple"><Icons.BarChart /></div>
                 <h2 style={{ fontSize: '1rem' }}>Intelligence Growth</h2>
               </div>
-              {trainingHistory.length > 0 && (
-                <div className="status-tag healthy" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem' }}>
-                  <div className="status-dot healthy" style={{ animation: 'pulse 1.5s infinite' }} />
-                  LIVE
-                </div>
-              )}
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Click to Expand</div>
             </div>
             <div className="card-body">
-              {trainingHistory.length > 0 ? (
-                <div className="chart-wrapper" style={{ padding: '0 10px 20px 20px' }}>
-                  <div className="chart-container" style={{ height: '180px', width: '100%', position: 'relative', borderLeft: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <svg width="100%" height="100%" viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
-                      <path d={`M ${trainingHistory.map((val, i) => `${(i / (trainingHistory.length - 1)) * 1000},${300 - (val / 3.0) * 300}`).join(' L ')}`} fill="none" stroke="var(--accent-purple)" strokeWidth="3" />
-                    </svg>
-                  </div>
-                  <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.65rem', color: 'var(--text-muted)' }}>Learning precision (Loss)</div>
-                </div>
-              ) : <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Waiting for training...</p>}
+              {trainingHistory.length > 0 ? renderLossChart() : <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>Waiting for training...</p>}
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
   const handleGrading = handleGrade; // Alias
 
@@ -795,8 +850,8 @@ function App() {
       {/* Navbar */}
       <nav className="navbar">
         <div className="navbar-brand">
-          <div className="navbar-logo">SC</div>
-          <span className="navbar-title">Antigravity Supply Chain AI</span>
+          <div className="navbar-logo">FS</div>
+          <span className="navbar-title">FlowSync AI</span>
         </div>
         <div className="navbar-links">
           <button className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>

@@ -43,7 +43,7 @@ class ExplainRequest(BaseModel):
     action: Dict[str, Any]
     history: List[ChatMessage] = []
 
-app = FastAPI(title="Retail Supply Chain OpenEnv", version="2.0.0")
+app = FastAPI(title="FlowSync AI Autonomous Engine", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,9 +66,9 @@ def _get_env() -> RetailSupplyChainEnv:
 @app.get("/")
 def root() -> Dict[str, str]:
     return {
-        "name": "retail_supply_chain_openenv",
-        "status": "ok",
-        "hint": "Use POST /reset, POST /step, GET /state",
+        "name": "flowsync_ai_core",
+        "status": "active",
+        "hint": "Connected to FlowSync Intelligence Network",
     }
 
 @app.get("/healthz")
