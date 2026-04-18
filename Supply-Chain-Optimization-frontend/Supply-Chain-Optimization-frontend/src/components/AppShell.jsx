@@ -1,17 +1,44 @@
-import { BarChart3, Boxes, BrainCircuit, FlaskConical, PlayCircle } from "lucide-react";
+import { Bot, Database, Globe2, LayoutDashboard, LineChart, ShieldCheck } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.jsx";
 
 const links = [
-  { to: "/app/inventory", label: "Inventory", icon: Boxes },
-  { to: "/app/simulation", label: "Simulation", icon: PlayCircle },
-  { to: "/app/recommendations", label: "AI Decisions", icon: BrainCircuit },
-  { to: "/app/scenarios", label: "Scenarios", icon: FlaskConical },
-  { to: "/app/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/app/producer-dashboard", label: "Producer", icon: Globe2 },
+  { to: "/app/financials", label: "Financials", icon: LineChart },
+  { to: "/app/logs", label: "Logs", icon: Database },
+  { to: "/app/copilot", label: "AI Co-Pilot", icon: Bot },
 ];
 
 export function AppShell() {
-  const { user, logout } = useAuth();
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      {/* Mobile top nav */}
+      <div className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 px-4 py-4 backdrop-blur-xl lg:hidden">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-200/80">FlowSync</p>
+            <p className="mt-1 text-sm text-slate-400">Agentic Suite</p>
+          </div>
+        </div>
+        <nav className="grid grid-cols-5 gap-1">
+          {links.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                [
+                  "flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-medium transition",
+                  isActive ? "bg-white/10 text-white" : "bg-white/[0.03] text-slate-400",
+                ].join(" ")
+              }
+            >
+              <Icon size={15} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">

@@ -27,9 +27,10 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 from env import RetailSupplyChainEnv
+from analysis_prompts import build_chat_context
 from math_agent import MultiEchelonBaseStockAgent
-from database import AppLog, AuthSession, RLTrajectory, SessionLocal, SimulationSession, User, UserCredential, init_db
-from .services import real_world_service
+from database import init_db, SessionLocal, RLTrajectory, SimulationSession, User
+from .services import producer_intel_service, real_world_service
 
 app = FastAPI(title="Supply Chain Co-Pilot API", version="1.0.0")
 auth_scheme = HTTPBearer(auto_error=False)
@@ -171,6 +172,7 @@ class DisruptBody(BaseModel):
 class ChatBody(BaseModel):
     message: str
     model: str = "llama3:latest"
+    analysisMode: Literal["supply_chain", "producer_analysis"] = "supply_chain"
 
 
 class RegisterBody(BaseModel):
@@ -503,33 +505,7 @@ def logout(current_user: User = Depends(get_current_user), credentials: HTTPAuth
 @app.post("/api/chat")
 def chat(body: ChatBody, current_user: User = Depends(get_current_user)):
     obs = sim.obs
-    context = f"""You are a supply chain financial advisor for business users.
-
-Your style rules:
-- Be concise, precise, and easy to understand.
-- Always use exactly this format:
-  Verdict: ...
-  Why: ...
-  What to do: ...
-- Start `Verdict` with one of: profit, loss, break-even, insufficient stock, or insufficient data.
-- Keep the full reply under 90 words.
-- Use plain business language, not technical jargon.
-- Never invent inventory, shipping cost, price, margin, or revenue numbers.
-- If the requested quantity is greater than available inventory, clearly say fulfillment is not possible from current stock.
-- If key data is missing, say what is missing in one short sentence.
-- If weather and route are unchanged, mention that briefly without overexplaining.
-- Do not show step-by-step math unless the user explicitly asks for calculations.
-
-Current simulation state:
-Current simulation state (Day {obs.day}):
-- Central Inventory: {obs.inventory_central} units
-- Regional Inventory: {obs.inventory_regional} units
-- Backlog (unfulfilled): {obs.backlog} units
-- Weather: {obs.weather_condition}
-- Overseas Route: {obs.overseas_route_status}
-- Fuel Cost Multiplier: {obs.fuel_cost_multiplier:.2f}x
-- Cumulative Profit: ${obs.cumulative_profit:,.2f}
-- Day {obs.day} of {sim.env.cfg.horizon_days}"""
+    context = build_chat_context(body.analysisMode, obs)
 
     try:
         client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
@@ -584,6 +560,27 @@ def db_stats(current_user: User = Depends(get_current_user)):
         "bestMargin": round(margin, 1),
         "optimizedDecisions": total_trajectories,
         "totalSessions": total_sessions
+    }
+
+
+@app.get("/api/producer-dashboard")
+def producer_dashboard():
+    obs = sim.obs
+    intel = producer_intel_service.get_latest()
+    real_world = real_world_service.get_latest()
+
+    return {
+        "generatedAt": intel.get("generatedAt") or sim.generated_at,
+        "status": {
+            "day": obs.day,
+            "horizon": sim.env.cfg.horizon_days,
+            "cumulativeProfit": round(obs.cumulative_profit, 2),
+            "fuelMultiplier": round(obs.fuel_cost_multiplier, 2),
+            "weather": obs.weather_condition,
+            "routeStatus": obs.overseas_route_status,
+            "realWorld": real_world,
+        },
+        "intel": intel,
     }
 
 

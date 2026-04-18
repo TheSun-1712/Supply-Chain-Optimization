@@ -2,6 +2,7 @@ import {
   controlDefaults,
   mockInventorySeries,
   mockLogs,
+  mockProducerDashboard,
 } from "../data/mockData";
 
 const API_BASE = "/api";
@@ -239,5 +240,18 @@ export async function triggerDisruption(type) {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function loadProducerDashboard() {
+  try {
+    const payload = await fetchJson("/api/producer-dashboard");
+    return {
+      generatedAt: payload.generatedAt ?? null,
+      status: payload.status ?? null,
+      intel: payload.intel ?? null,
+    };
+  } catch {
+    return mockProducerDashboard;
   }
 }

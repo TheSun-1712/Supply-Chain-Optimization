@@ -13,6 +13,7 @@ npm run dev
 
 - Landing page with a `Launch Agentic Suite` call-to-action
 - Fixed sidebar navigation for `Dashboard`, `Financials`, and `Logs`
+- Separate `Producer` dashboard for upstream news, geopolitical severity, and downstream device exposure
 - Environment controls for `Market Noise` and `Climate Stability`
 - Recharts-based inventory and profit forecast visualizations
 - Prediction logs table with a `Verify on Sei` badge for the max-profit row

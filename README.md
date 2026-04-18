@@ -76,7 +76,39 @@ Detailed payloads are documented in [API_CONTRACTS.md](supply_chain_management/s
 
 ### 1. Backend
 
-From repo root:
+At episode end, a terminal bonus based on service level and cumulative profit is added and clamped to `[0,1]`.
+
+## Baseline inference
+
+Mandatory script: `inference.py` (in repo root).
+
+It:
+
+- Uses OpenAI Python client for model calls.
+- Reads credentials from env vars: `OPENAI_API_KEY` (fallback `HF_TOKEN`).
+- Reads endpoint/model config from:
+	- `API_BASE_URL`
+	- `MODEL_NAME`
+	- `HF_TOKEN` (required by challenge configuration)
+- Runs all three tasks and prints strict structured logs:
+	- `[START] ...`
+	- `[STEP] ...`
+	- `[END] ...`
+
+## Producer risk dashboard
+
+The backend also exposes a producer-analysis view that pulls live news from SerpAPI and uses an LLM to score geopolitical severity and downstream product exposure.
+
+Required environment variables for live news analysis:
+
+- `SERPAPI_KEY`
+- `API_BASE_URL` or `OPENAI_BASE_URL` for the scoring LLM
+- `MODEL_NAME`
+- `OPENAI_API_KEY` or `HF_TOKEN` if the selected LLM endpoint requires authentication
+
+If the news or LLM credentials are missing, the dashboard falls back to cached heuristic analysis.
+
+## Setup
 
 ```bash
 python -m venv .venv

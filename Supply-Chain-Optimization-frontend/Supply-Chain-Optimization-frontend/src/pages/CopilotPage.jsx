@@ -5,35 +5,63 @@ import { StatusPill } from "../components/StatusPill";
 import { apiPost } from "../lib/api";
 
 export function CopilotPage() {
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "Hello! I'm your AI Supply Chain Co-Pilot. I have access to the live simulation state. Ask me about inventory levels, disruptions, strategy recommendations, or anything about the current run.",
-    },
-  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState("llama3:latest");
+  const [analysisMode, setAnalysisMode] = useState("supply_chain");
+  const [threads, setThreads] = useState({
+    supply_chain: [
+      {
+        role: "assistant",
+        content: "Hello! I'm your AI Supply Chain Co-Pilot. I have access to the live simulation state. Ask me about inventory levels, disruptions, strategy recommendations, or anything about the current run.",
+      },
+    ],
+    producer_analysis: [
+      {
+        role: "assistant",
+        content: "Hello! I can help with raw material procurement, assembly planning, component shortages, and upstream geopolitical risk.",
+      },
+    ],
+  });
   const bottomRef = useRef(null);
+  const messages = threads[analysisMode];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, analysisMode]);
 
   const send = async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
 
+    const activeMode = analysisMode;
     const userMsg = { role: "user", content: trimmed };
-    setMessages((m) => [...m, userMsg]);
+    setThreads((prev) => ({
+      ...prev,
+      [activeMode]: [...prev[activeMode], userMsg],
+    }));
     setInput("");
     setLoading(true);
 
     try {
-      const data = await apiPost("/api/chat", { message: trimmed, model });
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed, model, analysisMode: activeMode }),
+      });
+      const data = await res.json();
+      setThreads((prev) => ({
+        ...prev,
+        [activeMode]: [...prev[activeMode], { role: "assistant", content: data.reply }],
+      }));
     } catch {
-      setMessages((m) => [...m, { role: "assistant", content: "Error: Could not reach Ollama. Make sure it is running on port 11434." }]);
+      setThreads((prev) => ({
+        ...prev,
+        [activeMode]: [
+          ...prev[activeMode],
+          { role: "assistant", content: "Error: Could not reach Ollama. Make sure it is running on port 11434." },
+        ],
+      }));
     }
     setLoading(false);
   };
@@ -52,14 +80,24 @@ export function CopilotPage() {
         title="Live simulation analyst"
         description="Ask natural language questions about the running simulation. The AI reads live state data: inventory, weather, routes, profit, and more."
         aside={
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="rounded-full border border-white/10 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-cyan-400"
-          >
-            <option value="llama3:latest">Llama 3 (Recommended)</option>
-            <option value="qwen3.5:latest">Qwen 3.5</option>
-          </select>
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={analysisMode}
+              onChange={(e) => setAnalysisMode(e.target.value)}
+              className="rounded-full border border-white/10 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-cyan-400"
+            >
+              <option value="supply_chain">Supply Chain Analysis</option>
+              <option value="producer_analysis">Producer Analysis</option>
+            </select>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="rounded-full border border-white/10 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-cyan-400"
+            >
+              <option value="llama3:latest">Llama 3 (Recommended)</option>
+              <option value="qwen3.5:latest">Qwen 3.5</option>
+            </select>
+          </div>
         }
       />
 
@@ -107,7 +145,7 @@ export function CopilotPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Ask about inventory, disruptions, strategy... (Enter to send)"
+          placeholder={analysisMode === "supply_chain" ? "Ask about inventory, disruptions, strategy... (Enter to send)" : "Ask about procurement, assembly, and upstream risk... (Enter to send)"}
           rows={2}
           className="flex-1 resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400"
         />

@@ -111,3 +111,73 @@ export const landingStats = [
   { label: "Current Best Margin", value: "+18.2%" },
   { label: "Optimized Decisions", value: "842" },
 ];
+
+export const mockProducerDashboard = {
+  generatedAt: "2026-04-17T07:10:00Z",
+  status: {
+    day: 18,
+    horizon: 30,
+    cumulativeProfit: 18420.5,
+    fuelMultiplier: 1.78,
+    weather: "storm",
+    routeStatus: "delayed",
+    realWorld: {
+      status: "Real-World Sync",
+      wind_speed: 34,
+      oil_price: 86.12,
+    },
+  },
+  intel: {
+    status: "Live News Sync",
+    generatedAt: "2026-04-17T07:05:00Z",
+    riskScore: 4.4,
+    summary:
+      "Semiconductor risk is elevated. Monitor Taiwan-linked news for processor and chipset lead-time expansion, especially for laptops and phones.",
+    watchlist: ["processors", "chipsets", "semiconductors", "motherboards", "phones", "laptops"],
+    deviceWatchlist: ["phones", "laptops", "servers", "cars", "industrial systems", "appliances"],
+    headlines: [
+      {
+        headline: "Taiwan tension raises chip export control concerns",
+        theme: "Semiconductor exposure",
+        region: "Taiwan / East Asia",
+        production_area: "Semiconductor manufacturing",
+        url: "https://example.com/chips",
+        severity: 5,
+      },
+      {
+        headline: "Oil freight costs climb as shipping lanes tighten",
+        theme: "Logistics and fuel pressure",
+        region: "Global transport lanes",
+        production_area: "Energy and petrochemicals",
+        url: "https://example.com/fuel",
+        severity: 4,
+      },
+    ],
+    signals: [
+      {
+        headline: "Taiwan tension raises chip export control concerns",
+        theme: "Semiconductor exposure",
+        region: "Taiwan / East Asia",
+        production_area: "Semiconductor manufacturing",
+        likely_disruption: "Processor, chipset, and board availability risk for electronics assembly lines.",
+        affected_parts: ["processors", "chipsets", "semiconductors", "motherboards", "phones", "laptops"],
+        downstream_devices: ["phones", "laptops", "servers", "cars"],
+        severity: 5,
+        url: "https://example.com/chips",
+        source: "example.com",
+      },
+      {
+        headline: "Oil freight costs climb as shipping lanes tighten",
+        theme: "Logistics and fuel pressure",
+        region: "Global transport lanes",
+        production_area: "Energy and petrochemicals",
+        likely_disruption: "Freight costs and transit times may rise, increasing manufacturing and inbound material costs.",
+        affected_parts: ["transport", "assembly inputs", "inbound freight", "warehousing"],
+        downstream_devices: ["cars", "phones", "laptops", "appliances"],
+        severity: 4,
+        url: "https://example.com/fuel",
+        source: "example.com",
+      },
+    ],
+  },
+};

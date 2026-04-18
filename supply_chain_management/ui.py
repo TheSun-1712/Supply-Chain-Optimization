@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import json
 from env import RetailSupplyChainEnv
+from analysis_prompts import build_chat_context
 from math_agent import MultiEchelonBaseStockAgent
 from database import init_db, SessionLocal, User, SimulationSession, RLTrajectory
 
@@ -11,6 +12,28 @@ st.set_page_config(page_title="Supply Chain Co-Pilot", layout="wide")
 
 st.title("📦 Supply Chain Co-Pilot")
 st.markdown("Mathematical `(s, S)` Base-Stock Operations driven simulation, guided by an AI Co-Pilot.")
+
+CHAT_MODE_LABELS = {
+    "supply_chain": "Supply Chain Analysis",
+    "producer_analysis": "Producer Analysis",
+}
+
+
+def _initial_chat_messages() -> dict[str, list[dict[str, str]]]:
+    return {
+        "supply_chain": [
+            {
+                "role": "assistant",
+                "content": "Hello! I can help with inventory, disruptions, route status, backlog, and replenishment decisions.",
+            }
+        ],
+        "producer_analysis": [
+            {
+                "role": "assistant",
+                "content": "Hello! I can help with raw material procurement, assembly planning, component shortages, and upstream risk.",
+            }
+        ],
+    }
 
 # 1. Sidebar configuration
 st.sidebar.header("Configuration")
@@ -43,7 +66,9 @@ if "env" not in st.session_state:
     st.session_state.done = False
     st.session_state.agent = MultiEchelonBaseStockAgent()
     st.session_state.auto_play = False
-    st.session_state.messages = [{"role": "assistant", "content": "Hello! I am your AI Co-Pilot powered by Qwen. I have access to the real-time simulation state. How can I help?"}]
+    st.session_state.chat_mode = "supply_chain"
+    st.session_state.chat_messages = _initial_chat_messages()
+    st.session_state.chat_mode_select = CHAT_MODE_LABELS["supply_chain"]
 
 import dataclasses
 if st.session_state.env.cfg.horizon_days != custom_horizon:
@@ -73,7 +98,9 @@ if st.sidebar.button("Reset Simulation", type="primary"):
     st.session_state.done = False
     st.session_state.agent = MultiEchelonBaseStockAgent()
     st.session_state.auto_play = False
-    st.session_state.messages = [{"role": "assistant", "content": "Simulation reset. How can I help?"}]
+    st.session_state.chat_mode = "supply_chain"
+    st.session_state.chat_messages = _initial_chat_messages()
+    st.session_state.chat_mode_select = CHAT_MODE_LABELS["supply_chain"]
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -226,15 +253,24 @@ with left_col:
 
 with right_col:
     st.header("Qwen Co-Pilot")
-    st.markdown("Ask questions about the current state!")
+    st.markdown("Ask questions about the current state or switch to upstream producer analysis.")
+    selected_mode_label = st.selectbox(
+        "Analysis Mode",
+        list(CHAT_MODE_LABELS.values()),
+        index=0,
+        key="chat_mode_select",
+    )
+    selected_mode = next(mode for mode, label in CHAT_MODE_LABELS.items() if label == selected_mode_label)
+    st.session_state.chat_mode = selected_mode
     
     # Display Chat History 
-    for message in st.session_state.messages:
+    for message in st.session_state.chat_messages[selected_mode]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             
-    if prompt := st.chat_input("Ask Qwen..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    prompt_placeholder = "Ask about supply-chain state..." if selected_mode == "supply_chain" else "Ask about procurement and production planning..."
+    if prompt := st.chat_input(prompt_placeholder):
+        st.session_state.chat_messages[selected_mode].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
             
@@ -243,19 +279,7 @@ with right_col:
             
             # Inject tight context
             o = st.session_state.obs
-            context = f"""[SYSTEM CONTEXT]
-You are a Supply Chain analyst Co-Pilot. Be concise.
-The user is watching a simulation. Here is the exact current state for Day {o.day}:
-- Central Inventory: {o.inventory_central}
-- Regional Inventory: {o.inventory_regional}
-- Backlog Unfulfilled: {o.backlog}
-- Weather: {o.weather_condition}
-- Overseas Route: {o.overseas_route_status}
-- Fuel Cost Multiplier: {o.fuel_cost_multiplier:.2f}x
-- Cumulative Profit: ${o.cumulative_profit:.2f}
-[END SYSTEM CONTEXT]
-
-User asks: {prompt}"""
+            context = build_chat_context(selected_mode, o)
 
             try:
                 client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
@@ -272,7 +296,7 @@ User asks: {prompt}"""
                 reply = f"Error connecting to Ollama: {e}"
                 
             message_placeholder.markdown(reply)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
+            st.session_state.chat_messages[selected_mode].append({"role": "assistant", "content": reply})
 
 if st.session_state.auto_play and not st.session_state.done:
     time.sleep(auto_speed)

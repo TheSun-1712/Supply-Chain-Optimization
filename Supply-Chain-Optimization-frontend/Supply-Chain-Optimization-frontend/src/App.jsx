@@ -4,22 +4,11 @@ import { AppShell } from "./components/AppShell";
 import { useAuth } from "./hooks/useAuth.jsx";
 
 const LandingPage = lazy(() => import("./pages/LandingPage").then((m) => ({ default: m.LandingPage })));
-const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })));
-const InventoryManagementPage = lazy(() => import("./pages/InventoryManagementPage").then((m) => ({ default: m.InventoryManagementPage })));
-const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage").then((m) => ({ default: m.RecommendationsPage })));
-const ScenarioTestingPage = lazy(() => import("./pages/ScenarioTestingPage").then((m) => ({ default: m.ScenarioTestingPage })));
-const SimulationDashboardPage = lazy(() => import("./pages/SimulationDashboardPage").then((m) => ({ default: m.SimulationDashboardPage })));
-const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
-
-function ProtectedRoute() {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Checking session...</div>;
-  }
-
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
-}
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const ProducerDashboardPage = lazy(() => import("./pages/ProducerDashboardPage").then((m) => ({ default: m.ProducerDashboardPage })));
+const FinancialsPage = lazy(() => import("./pages/FinancialsPage").then((m) => ({ default: m.FinancialsPage })));
+const LogsPage = lazy(() => import("./pages/LogsPage").then((m) => ({ default: m.LogsPage })));
+const CopilotPage = lazy(() => import("./pages/CopilotPage").then((m) => ({ default: m.CopilotPage })));
 
 export default function App() {
   return (
@@ -32,16 +21,13 @@ export default function App() {
     >
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route element={<ProtectedRoute />}>
-          <Route path="/app" element={<AppShell />}>
-            <Route index element={<Navigate to="/app/inventory" replace />} />
-            <Route path="inventory" element={<InventoryManagementPage />} />
-            <Route path="simulation" element={<SimulationDashboardPage />} />
-            <Route path="recommendations" element={<RecommendationsPage />} />
-            <Route path="scenarios" element={<ScenarioTestingPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-          </Route>
+        <Route path="/app" element={<AppShell />}>
+          <Route index element={<Navigate to="/app/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="producer-dashboard" element={<ProducerDashboardPage />} />
+          <Route path="financials" element={<FinancialsPage />} />
+          <Route path="logs" element={<LogsPage />} />
+          <Route path="copilot" element={<CopilotPage />} />
         </Route>
       </Routes>
     </Suspense>
