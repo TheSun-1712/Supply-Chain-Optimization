@@ -1,10 +1,12 @@
-import { Bot, Database, Globe2, LayoutDashboard, LineChart, ShieldCheck } from "lucide-react";
+import { Bot, Cpu, Database, GitBranch, Globe2, LayoutDashboard, LineChart } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.jsx";
 
 const links = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/app/producer-dashboard", label: "Producer", icon: Globe2 },
+  { to: "/app/implementation-pipeline", label: "Pipeline", icon: GitBranch },
+  { to: "/app/machine-health", label: "Machine", icon: Cpu },
   { to: "/app/financials", label: "Financials", icon: LineChart },
   { to: "/app/logs", label: "Logs", icon: Database },
   { to: "/app/copilot", label: "AI Co-Pilot", icon: Bot },
@@ -35,7 +37,7 @@ export function AppShell() {
             Log out
           </button>
         </div>
-        <nav className="grid grid-cols-5 gap-1">
+        <nav className="grid grid-cols-4 gap-1">
           {links.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
