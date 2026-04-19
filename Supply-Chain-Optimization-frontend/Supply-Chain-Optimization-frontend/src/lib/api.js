@@ -303,3 +303,7 @@ export async function loadRlModelStatus() {
 export async function trainRlWithProducerData(payload = {}) {
   return apiPost("/rl/train-producer", payload);
 }
+
+export async function transferCentralToRegional(quantity = 25) {
+  return apiPost("/sim/transfer-to-regional", { quantity });
+}

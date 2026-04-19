@@ -260,6 +260,10 @@ class TrainProducerBody(BaseModel):
     learningRate: float = 1e-4
 
 
+class ManualTransferBody(BaseModel):
+    quantity: int = 25
+
+
 def _hash_password(password: str, salt: Optional[str] = None) -> str:
     actual_salt = salt or secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), actual_salt.encode("utf-8"), 200_000).hex()
@@ -513,6 +517,72 @@ def sim_reset(current_user: User = Depends(get_current_user)):
     sim._reset()
     _write_app_log("simulation_reset", "Simulation reset.", user_id=current_user.id)
     return {"ok": True}
+
+
+@app.post("/api/sim/transfer-to-regional")
+def transfer_to_regional(body: ManualTransferBody, current_user: User = Depends(get_current_user)):
+    quantity = max(1, int(body.quantity or 0))
+
+    # Manual rebalance should work even when autoplay is paused and must not advance day.
+    available = int(getattr(sim.obs, "inventory_central", 0))
+    moved = min(quantity, max(0, available))
+
+    if moved <= 0:
+        raise HTTPException(status_code=400, detail="No central inventory available for transfer")
+
+    sim.obs.inventory_central = max(0, sim.obs.inventory_central - moved)
+    sim.obs.inventory_regional = max(0, sim.obs.inventory_regional + moved)
+
+    # Keep env internals aligned with observation state.
+    if hasattr(sim.env, "inventory_central"):
+        sim.env.inventory_central = sim.obs.inventory_central
+    if hasattr(sim.env, "inventory_regional"):
+        sim.env.inventory_regional = sim.obs.inventory_regional
+
+    entry = {
+        "day": sim.obs.day,
+        "centralInv": sim.obs.inventory_central,
+        "regionalInv": sim.obs.inventory_regional,
+        "backlog": sim.obs.backlog,
+        "profit": round(sim.obs.cumulative_profit, 2),
+        "forecast": round(sim.obs.cumulative_profit * 0.97, 2),
+        "weather": sim.obs.weather_condition,
+        "routeStatus": sim.obs.overseas_route_status,
+        "fuelMultiplier": round(sim.obs.fuel_cost_multiplier, 2),
+        "action": "TRANSFER_MANUAL",
+        "quantity": moved,
+        "revenue": 0.0,
+        "dailyProfit": 0.0,
+        "totalCosts": 0.0,
+    }
+    sim.logs.append(entry)
+
+    _write_app_log(
+        "simulation_manual_transfer",
+        "Manual transfer from central to regional inventory applied.",
+        user_id=current_user.id,
+        metadata={"requested": quantity, "moved": moved, "day": sim.obs.day},
+    )
+
+    return {
+        "ok": True,
+        "moved": moved,
+        "entry": entry,
+        "status": {
+            "day": sim.obs.day,
+            "horizon": sim.env.cfg.horizon_days,
+            "autoPlay": sim.auto_play,
+            "done": sim.env.done,
+            "weather": sim.obs.weather_condition,
+            "routeStatus": sim.obs.overseas_route_status,
+            "fuelMultiplier": round(sim.obs.fuel_cost_multiplier, 2),
+            "cumulativeProfit": round(sim.obs.cumulative_profit, 2),
+            "backlog": sim.obs.backlog,
+            "centralInv": sim.obs.inventory_central,
+            "regionalInv": sim.obs.inventory_regional,
+            "realWorld": getattr(sim.env, 'real_world_data', {}),
+        },
+    }
 
 
 @app.post("/api/auth/register")
